@@ -1,5 +1,5 @@
-from ..plotter import Plotter
-from ..plotter import Parser
+from ..my_draw import Plotter
+from ..my_draw import Parser
 
 
 parser = Parser.from_file("src/test/bezier.svg")
