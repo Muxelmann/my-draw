@@ -13,6 +13,7 @@ if TEST_SVG is None:
     raise Exception("Please proveide a testing SVG")
 
 parser = Parser.from_file(TEST_SVG)
+parser.optimize_curves()
 
 plotter = Plotter(PORT)
 parser.scale_to_fit((135, 200))

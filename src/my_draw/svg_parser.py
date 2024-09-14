@@ -411,7 +411,10 @@ class Parser:
                 self.curves[i][j] = [x * x_scale, y * y_scale]
 
     def scale_to_fit(
-        self, scale_format: str | tuple[float], in_portrait: bool = True
+        self,
+        scale_format: str | tuple[float],
+        in_portrait: bool = True,
+        use_viewbox: bool = True,
     ) -> None:
         formats = {
             "a0": (841, 1189),
@@ -442,10 +445,12 @@ class Parser:
 
         aspect_target = w_target / h_target
 
-        min_x, min_y, max_x, max_y = self.get_min_max()
-
-        # Make sure content is at position (0, 0)
-        self.offset_by(-min_x, -min_y)
+        if use_viewbox:
+            min_x, min_y, max_x, max_y = self.viewbox
+        else:
+            min_x, min_y, max_x, max_y = self.get_min_max()
+            # Make sure content is at position (0, 0)
+            self.offset_by(-min_x, -min_y)
 
         w_source = max_x - min_x
         h_source = max_y - min_y
@@ -467,9 +472,11 @@ class Parser:
             last_end = optimized_curves[-1][-1]
 
             # Find closest start/end curve
+
             nn_dist: int | None = None
             nn_idx: int | None = None
             use_start: bool | None = None
+
             for i, curve in enumerate(self.curves):
                 curve_start = curve[0]
                 curve_end = curve[-1]
@@ -491,6 +498,8 @@ class Parser:
                     nn_dist = dist_to_end
                     nn_idx = i
                     use_start = False
+
+            # Append curve based on closest start/end and reverse if necessary
 
             optimized_curves.append(self.curves.pop(nn_idx))
 
