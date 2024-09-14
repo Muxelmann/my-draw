@@ -42,7 +42,7 @@ class Plotter:
         with open(file_path, "w") as f:
             f.write(self.gcode)
 
-    def convert_curves(self, curves: list, home: bool = True) -> None:
+    def convert_curves(self, curves: list, home: bool = False) -> None:
         self.gcode_list = []
 
         if home:
