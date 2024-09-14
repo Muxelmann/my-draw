@@ -458,3 +458,43 @@ class Parser:
             # Source wider than target
             scale = w_target / w_source
         self.scale_by(scale, scale)
+
+    def optimize_curves(self) -> None:
+        optimized_curves = [self.curves.pop(0)]
+
+        while len(self.curves) > 0:
+
+            last_end = optimized_curves[-1][-1]
+
+            # Find closest start/end curve
+            nn_dist: int | None = None
+            nn_idx: int | None = None
+            use_start: bool | None = None
+            for i, curve in enumerate(self.curves):
+                curve_start = curve[0]
+                curve_end = curve[-1]
+
+                dist_to_start = math.sqrt(
+                    (curve_start[0] - last_end[0]) ** 2
+                    + (curve_start[1] - last_end[1]) ** 2
+                )
+                if nn_dist is None or nn_dist > dist_to_start:
+                    nn_dist = dist_to_start
+                    nn_idx = i
+                    use_start = True
+
+                dist_to_end = math.sqrt(
+                    (curve_end[0] - last_end[0]) ** 2
+                    + (curve_end[1] - last_end[1]) ** 2
+                )
+                if nn_dist is None or nn_dist > dist_to_end:
+                    nn_dist = dist_to_end
+                    nn_idx = i
+                    use_start = False
+
+            optimized_curves.append(self.curves.pop(nn_idx))
+
+            if not use_start:
+                optimized_curves[-1].reverse()
+
+        self.curves = optimized_curves
