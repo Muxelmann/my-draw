@@ -1,0 +1,391 @@
+from xml.etree import ElementTree
+import re
+import copy
+import math
+
+NAMESPACE = "{http://www.w3.org/2000/svg}"
+
+
+class Parser:
+    def __init__(
+        self,
+        svg_string: str,
+        parse_on_init: bool = True,
+        interpolate_on_init: bool = True,
+    ) -> None:
+        self.curves = []
+
+        self.current_curve = []
+        self.current_transforms = []
+        self.last_command = None
+
+        root = ElementTree.fromstring(svg_string)
+
+        if not parse_on_init:
+            return
+        self.parse(root)
+
+        if not interpolate_on_init:
+            return
+        self.interpolate()
+
+    @staticmethod
+    def from_file(path: str) -> "Parser":
+        with open(path, "r") as f:
+            return Parser(f.read())
+
+    def parse(self, root: ElementTree.Element, transform: str | None = None) -> None:
+
+        self.current_transforms.append(transform)
+
+        for element in list(root):
+
+            if element.tag == f"{NAMESPACE}path":
+                self.convert_path(element.get("d"), transform)
+
+            elif element.tag == f"{NAMESPACE}g":
+                self.parse(element, element.get("transform"))
+
+            elif element.tag == f"{NAMESPACE}rect":
+                self.convert_rect(
+                    float(element.get("x")),
+                    float(element.get("y")),
+                    float(element.get("width")),
+                    float(element.get("height")),
+                )
+
+            elif element.tag == f"{NAMESPACE}circle":
+                self.convert_circle(
+                    float(element.get("cx")),
+                    float(element.get("cy")),
+                    float(element.get("r")),
+                )
+
+            elif element.tag == f"{NAMESPACE}defs":
+                self.convert_defs(element)
+
+            else:
+                raise Exception(f"Unknown tag {element.tag}")
+
+        self.current_transforms.pop()
+
+    def matrix(self, p: list) -> None:
+        for i in range(len(self.current_curve)):
+            self.current_curve[i] = [
+                self.current_curve[i][0] * p[0]
+                + self.current_curve[i][1] * p[2]
+                + p[4],
+                self.current_curve[i][0] * p[1]
+                + self.current_curve[i][1] * p[3]
+                + p[5],
+            ]
+
+    def scale(self, p: list) -> None:
+        if len(p) == 1:
+            p = [p[0], p[0]]
+
+        for i in range(len(self.current_curve)):
+            self.current_curve[i] = [
+                self.current_curve[i][0] * p[0],
+                self.current_curve[i][1] * p[1],
+            ]
+
+    def translate(self, p: list) -> None:
+        if len(p) == 1:
+            p = [p[0], 0]
+
+        for i in range(len(self.current_curve)):
+            self.current_curve[i] = [
+                self.current_curve[i][0] + p[0],
+                self.current_curve[i][1] + p[1],
+            ]
+
+    def apply_transforms(self) -> None:
+        transform_list = [t for t in self.current_transforms if t is not None]
+
+        if len(transform_list) == 0:
+            return
+
+        transforms = {
+            "matrix": self.matrix,
+            "scale": self.scale,
+            "translate": self.translate,
+            # "rotate": None,
+            # "skewX": None,
+            # "skewY": None,
+        }
+        transform_regex = (
+            r"(matrix|scale|translate|rotate|skewX|skewY)\(([0-9\.\-\s\,]+)\)"
+        )
+
+        transform_list.reverse()
+        for transform_str in transform_list:
+            for t in re.findall(transform_regex, transform_str):
+                transform_key = t[0]
+                transform_params = [float(p) for p in re.findall(r"[0-9\-\.e]+", t[1])]
+
+                transforms[transform_key](transform_params)
+
+    def save_current_curve(self) -> None:
+        self.apply_transforms()
+        self.curves.append(copy.deepcopy(self.current_curve))
+        self.current_curve = []
+
+    def move(self, p: list) -> None:
+        self.current_curve.append(p)
+
+    def move_relative(self, p: list) -> None:
+        p = [self.curves[-1][-1][0] + p[0], self.curves[-1][-1][1] + p[1]]
+        self.move(p)
+
+    def line(self, p: list) -> None:
+        self.current_curve.append(
+            [
+                self.current_curve[-1][0] + (p[0] - self.current_curve[-1][0]) * 0.33,
+                self.current_curve[-1][1] + (p[1] - self.current_curve[-1][1]) * 0.33,
+            ]
+        )
+        self.current_curve.append(
+            [
+                self.current_curve[-1][0] + (p[0] - self.current_curve[-1][0]) * 0.66,
+                self.current_curve[-1][1] + (p[1] - self.current_curve[-1][1]) * 0.66,
+            ]
+        )
+        self.current_curve.append(p)
+
+    def line_relative(self, p: list) -> None:
+        p = [self.current_curve[-2] + p[0], self.current_curve[-1] + p[1]]
+        self.line(p)
+
+    def horizontal(self, p: list) -> None:
+        p = [p[0], self.current_curve[-1][1]]
+        self.line(p)
+
+    def horizontal_relative(self, p: list) -> None:
+        p = [p[0] + self.current_curve[-1][0]]
+        self.horizontal(p)
+
+    def vertical(self, p: list) -> None:
+        p = [self.current_curve[-1][0], p[0]]
+        self.line(p)
+
+    def vertical_relative(self, p: list) -> None:
+        p = [p[0] + self.current_curve[-1][1]]
+        self.vertical(p)
+
+    def close_path(self, _: list) -> None:
+        if self.current_curve[0] != self.current_curve[-1]:
+            self.line(self.current_curve[0])
+
+        self.save_current_curve()
+
+    def cubic_bezier(self, p: list) -> None:
+        self.current_curve.append([p[0], p[1]])
+        self.current_curve.append([p[2], p[3]])
+        self.current_curve.append([p[4], p[5]])
+
+    def cubic_bezier_relative(self, p: list) -> None:
+        p = [
+            p[0] + self.current_curve[-1][0],
+            p[1] + self.current_curve[-1][1],
+            p[2] + self.current_curve[-1][0],
+            p[3] + self.current_curve[-1][1],
+            p[4] + self.current_curve[-1][0],
+            p[5] + self.current_curve[-1][1],
+        ]
+        self.cubic_bezier(p)
+
+    def smooth_cubic_bezier(self, p: list) -> None:
+        if self.last_command is not None and self.last_command.lower() in "cs":
+            p = [
+                self.current_curve[-1][0]
+                + (self.current_curve[-1][0] - self.current_curve[-2][0]),
+                self.current_curve[-2][1]
+                + (self.current_curve[-1][1] - self.current_curve[-2][1]),
+                p[1],
+                p[2],
+                p[3],
+                p[4],
+            ]
+        else:
+            p = [
+                self.current_curve[-1][0],
+                self.current_curve[-1][1],
+                p[1],
+                p[2],
+                p[3],
+                p[4],
+            ]
+        self.cubic_bezier(p)
+
+    def smooth_cubic_bezier_relative(self, p: list) -> None:
+        p = [
+            p[0] + self.current_curve[-1][0],
+            p[1] + self.current_curve[-1][1],
+            p[2] + self.current_curve[-1][0],
+            p[3] + self.current_curve[-1][1],
+        ]
+        self.smooth_cubic_bezier(p)
+
+    def quadratic_bezier(self, p: list) -> None:
+        p = [p[0], p[1], p[0], p[1], p[2], p[3]]
+        self.cubic_bezier(p)
+
+    def quadratic_bezier_relative(self, p: list) -> None:
+        p = [
+            p[0] + self.current_curve[-1][0],
+            p[1] + self.current_curve[-1][1],
+            p[2] + self.current_curve[-1][0],
+            p[3] + self.current_curve[-1][1],
+        ]
+        self.quadratic_bezier(p)
+
+    def smooth_quadratic_bezier(self, p: list) -> None:
+        if self.last_command is not None and self.last_command.lower() in "qt":
+            p = [
+                self.current_curve[-1][0]
+                + (self.current_curve[-1][0] - self.current_curve[-2][0]),
+                self.current_curve[-2][1]
+                + (self.current_curve[-1][1] - self.current_curve[-2][1]),
+                self.current_curve[-1][0]
+                + (self.current_curve[-1][0] - self.current_curve[-2][0]),
+                self.current_curve[-2][1]
+                + (self.current_curve[-1][1] - self.current_curve[-2][1]),
+                p[1],
+                p[2],
+            ]
+        else:
+            p = [
+                self.current_curve[-1][0],
+                self.current_curve[-1][1],
+                self.current_curve[-1][0],
+                self.current_curve[-1][1],
+                p[1],
+                p[2],
+            ]
+        self.cubic_bezier(p)
+
+    def smooth_quadratic_bezier_relative(self, p: list) -> None:
+        p = [
+            p[0] + self.current_curve[-1][0],
+            p[1] + self.current_curve[-1][1],
+        ]
+        self.smooth_quadratic_bezier(p)
+
+    def convert_path(self, d: str, transform: str | None) -> None:
+
+        commands = {
+            "M": self.move,
+            "m": self.move_relative,
+            "L": self.line,
+            "l": self.line_relative,
+            "H": self.horizontal,
+            "h": self.horizontal_relative,
+            "V": self.vertical,
+            "v": self.vertical_relative,
+            "Z": self.close_path,
+            "z": self.close_path,
+            "C": self.cubic_bezier,
+            "c": self.cubic_bezier_relative,
+            "Q": self.quadratic_bezier,
+            "q": self.quadratic_bezier_relative,
+            "S": self.smooth_cubic_bezier,
+            "s": self.smooth_cubic_bezier_relative,
+            "T": self.smooth_quadratic_bezier,
+            "t": self.smooth_quadratic_bezier_relative,
+            # "A": pass,
+            # "a": pass,
+        }
+        command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
+
+        for command_str in re.findall(command_regex, d):
+            params = [float(p) for p in re.findall(r"[0-9\-\.e]+", command_str[1:])]
+            command = command_str[0]
+
+            if command not in commands.keys():
+                raise Exception(f"Unknown command {command}")
+
+            commands[command](params)
+            self.last_command = command
+
+        if len(self.current_curve) > 0:
+            # Curve not closed
+            self.save_current_curve()
+
+    def convert_rect(self, x: float, y: float, w: float, h: float) -> None:
+        self.move((x, y))
+        self.line((x + w, y))
+        self.line((x + w, y + h))
+        self.line((x, y + h))
+        self.close_path((x, y))
+
+    def convert_circle(self, cx: float, cy: float, r: float) -> None:
+        c = 4 / 3 * (math.sqrt(2) - 1)
+        self.move((cx + r, cy))
+        self.cubic_bezier((cx + r, cy - r * c, cx + r * c, cy - r, cx, cy - r))
+        self.cubic_bezier((cx - r * c, cy - r, cx - r, cy - r * c, cx - r, cy))
+        self.cubic_bezier((cx - r, cy + r * c, cx - r * c, cy + r, cx, cy + r))
+        self.cubic_bezier((cx + r * c, cy + r, cx + r, cy + r * c, cx + r, cy))
+        self.close_path([])
+
+    def convert_defs(self, element: ElementTree.Element) -> None:
+        if len(element) == 0:
+            print(f"Empty def element found: {element}")
+            return
+
+        raise Exception("Non-empty def element not handled")
+
+    def interpolate(self) -> None:
+        for i, curve in enumerate(self.curves):
+            if (len(curve) - 1) % 3 != 0:
+                raise Exception("Curve points are not proveided successively!")
+
+            new_curve = []
+            for j in range(0, len(curve) - 1, 3):
+                p0, p1, p2, p3 = curve[j : j + 4]  # start control1 control2 end
+
+                # Make interpolation pounts dependent on total euclidean distance from p0 > p1 > p2 > p3
+                d = max(
+                    10,
+                    min(
+                        100,
+                        round(
+                            math.sqrt((p1[0] - p0[0]) ** 2 + (p1[1] - p0[1]) ** 2)
+                            + math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
+                            + math.sqrt((p3[0] - p2[0]) ** 2 + (p3[1] - p2[1]) ** 2)
+                        )
+                        // 5,
+                    ),
+                )
+
+                new_curve.append(p0)
+                for t in range(d):
+                    t = t / d
+                    p01 = [
+                        (p1[0] - p0[0]) * t + p0[0],
+                        (p1[1] - p0[1]) * t + p0[1],
+                    ]
+                    p12 = [
+                        (p2[0] - p1[0]) * t + p1[0],
+                        (p2[1] - p1[1]) * t + p1[1],
+                    ]
+                    p23 = [
+                        (p3[0] - p2[0]) * t + p2[0],
+                        (p3[1] - p2[1]) * t + p2[1],
+                    ]
+
+                    p0112 = [
+                        (p12[0] - p01[0]) * t + p01[0],
+                        (p12[1] - p01[1]) * t + p01[1],
+                    ]
+                    p1223 = [
+                        (p23[0] - p12[0]) * t + p12[0],
+                        (p23[1] - p12[1]) * t + p12[1],
+                    ]
+                    p01121223 = [
+                        (p1223[0] - p0112[0]) * t + p0112[0],
+                        (p1223[1] - p0112[1]) * t + p0112[1],
+                    ]
+                    new_curve.append(p01121223)
+            new_curve.append(p3)
+            self.curves[i] = new_curve

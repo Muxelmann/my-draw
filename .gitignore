@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Python cache
+__pycache__/
+.mypy_cache
+
+# Editor
+.vscode
+
+# Flask stuff
+instance/
+
