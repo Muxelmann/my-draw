@@ -15,5 +15,6 @@ if TEST_SVG is None:
 parser = Parser.from_file(TEST_SVG)
 
 plotter = Plotter(PORT)
+parser.scale_to_fit((135, 200))
 plotter.convert_curves(parser.curves)
 plotter.exec_commands()
