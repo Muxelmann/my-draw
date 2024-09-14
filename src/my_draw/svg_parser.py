@@ -350,7 +350,7 @@ class Parser:
 
                 # Make interpolation pounts dependent on total euclidean distance from p0 > p1 > p2 > p3
                 d = max(
-                    10,
+                    3,
                     min(
                         100,
                         round(
@@ -501,9 +501,15 @@ class Parser:
 
             # Append curve based on closest start/end and reverse if necessary
 
-            optimized_curves.append(self.curves.pop(nn_idx))
-
+            curve = self.curves.pop(nn_idx)
             if not use_start:
-                optimized_curves[-1].reverse()
+                curve.reverse()
+
+            if nn_dist > 0:
+                # Append new curve if not continuing at same location
+                optimized_curves.append(curve)
+            else:
+                # Combine curves if continuing at same location
+                optimized_curves[-1] += curve[1:]
 
         self.curves = optimized_curves
