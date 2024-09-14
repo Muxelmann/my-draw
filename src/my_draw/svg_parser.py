@@ -12,6 +12,7 @@ class Parser:
         svg_string: str,
         parse_on_init: bool = True,
         interpolate_on_init: bool = True,
+        scale_format: str | None = None,
     ) -> None:
         self.curves = []
 
@@ -20,14 +21,16 @@ class Parser:
         self.last_command = None
 
         root = ElementTree.fromstring(svg_string)
+        self.viewbox = [float(c) for c in root.get("viewBox").split(" ")]
 
-        if not parse_on_init:
-            return
-        self.parse(root)
+        if parse_on_init:
+            self.parse(root)
 
-        if not interpolate_on_init:
-            return
-        self.interpolate()
+            if interpolate_on_init:
+                self.interpolate()
+
+            if scale_format:
+                self.scale_to_fit(scale_format)
 
     @staticmethod
     def from_file(path: str) -> "Parser":
@@ -69,7 +72,8 @@ class Parser:
 
         self.current_transforms.pop()
 
-    def matrix(self, p: list) -> None:
+    def tx_matrix(self, p: list) -> None:
+        pass
         for i in range(len(self.current_curve)):
             self.current_curve[i] = [
                 self.current_curve[i][0] * p[0]
@@ -80,7 +84,7 @@ class Parser:
                 + p[5],
             ]
 
-    def scale(self, p: list) -> None:
+    def tx_scale(self, p: list) -> None:
         if len(p) == 1:
             p = [p[0], p[0]]
 
@@ -90,7 +94,7 @@ class Parser:
                 self.current_curve[i][1] * p[1],
             ]
 
-    def translate(self, p: list) -> None:
+    def tx_translate(self, p: list) -> None:
         if len(p) == 1:
             p = [p[0], 0]
 
@@ -107,22 +111,22 @@ class Parser:
             return
 
         transforms = {
-            "matrix": self.matrix,
-            "scale": self.scale,
-            "translate": self.translate,
+            "matrix": self.tx_matrix,
+            "scale": self.tx_scale,
+            "translate": self.tx_translate,
             # "rotate": None,
             # "skewX": None,
             # "skewY": None,
         }
         transform_regex = (
-            r"(matrix|scale|translate|rotate|skewX|skewY)\(([0-9\.\-\s\,]+)\)"
+            r"(matrix|scale|translate|rotate|skewX|skewY)\(([0-9e\.\-\s\,]+)\)"
         )
 
         transform_list.reverse()
         for transform_str in transform_list:
             for t in re.findall(transform_regex, transform_str):
                 transform_key = t[0]
-                transform_params = [float(p) for p in re.findall(r"[0-9\-\.e]+", t[1])]
+                transform_params = [float(p) for p in re.findall(r"[0-9e\-\.]+", t[1])]
 
                 transforms[transform_key](transform_params)
 
@@ -299,7 +303,7 @@ class Parser:
         command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
 
         for command_str in re.findall(command_regex, d):
-            params = [float(p) for p in re.findall(r"[0-9\-\.e]+", command_str[1:])]
+            params = [float(p) for p in re.findall(r"[0-9e\-\.]+", command_str[1:])]
             command = command_str[0]
 
             if command not in commands.keys():
@@ -389,3 +393,68 @@ class Parser:
                     new_curve.append(p01121223)
             new_curve.append(p3)
             self.curves[i] = new_curve
+
+    def get_min_max(self) -> tuple[float]:
+        all_x = [v[0] for curve in self.curves for v in curve]
+        all_y = [v[1] for curve in self.curves for v in curve]
+
+        return min(all_x), min(all_y), max(all_x), max(all_y)
+
+    def offset_by(self, x_offset: float, y_offset: float) -> None:
+        for i, curve in enumerate(self.curves):
+            for j, (x, y) in enumerate(curve):
+                self.curves[i][j] = [x + x_offset, y + y_offset]
+
+    def scale_by(self, x_scale: float, y_scale: float) -> None:
+        for i, curve in enumerate(self.curves):
+            for j, (x, y) in enumerate(curve):
+                self.curves[i][j] = [x * x_scale, y * y_scale]
+
+    def scale_to_fit(
+        self, scale_format: str | tuple[float], in_portrait: bool = True
+    ) -> None:
+        formats = {
+            "a0": (841, 1189),
+            "a1": (594, 841),
+            "a2": (420, 594),
+            "a3": (297, 420),
+            "a4": (210, 297),
+            "a5": (148, 210),
+            "a6": (105, 148),
+            "a7": (74, 105),
+            "a8": (52, 74),
+            "a9": (37, 52),
+            "a10": (26, 37),
+        }
+
+        if isinstance(scale_format, str):
+            scale_format = scale_format.lower()
+
+            if scale_format not in formats.keys():
+                raise Exception(f"Unknown scale format: {scale_format}")
+
+            if in_portrait:
+                w_target, h_target = formats[scale_format]
+            else:
+                h_target, w_target = formats[scale_format]
+        else:
+            w_target, h_target = scale_format
+
+        aspect_target = w_target / h_target
+
+        min_x, min_y, max_x, max_y = self.get_min_max()
+
+        # Make sure content is at position (0, 0)
+        self.offset_by(-min_x, -min_y)
+
+        w_source = max_x - min_x
+        h_source = max_y - min_y
+
+        aspect_src = w_source / h_source
+        if aspect_src < aspect_target:
+            # Source taller than target
+            scale = h_target / h_source
+        else:
+            # Source wider than target
+            scale = w_target / w_source
+        self.scale_by(scale, scale)
