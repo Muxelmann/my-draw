@@ -5,11 +5,16 @@ from tqdm import tqdm
 
 class Plotter:
     def __init__(
-        self, home: bool = False, feed_speed: float = 5000, down_dist: float = 5
+        self,
+        port: str,
+        home: bool = False,
+        feed_speed: float = 5000,
+        down_dist: float = 5,
     ) -> None:
         """Initializes a Plotter instance to communicate over serial
 
         Args:
+            port (str): The name of the serial port to which the plotter is connected.
             home (bool, optional): Homes the plotter automatically upon connection. Defaults to False.
             feed_speed (float, optional): Movement speed when plotting. Defaults to 5000.
             down_dist (float, optional): _description_. Defaults to 5.
@@ -17,7 +22,7 @@ class Plotter:
         Raises:
             Exception: _description_
         """
-        self.ser = serial.Serial("/dev/cu.usbserial-21340", 115200)
+        self.ser = serial.Serial(port, 115200)
 
         self.feed_speed = feed_speed
         self.down_dist = down_dist
