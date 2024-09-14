@@ -8,7 +8,11 @@ PORT = os.getenv("PLOTTER_PORT")
 if PORT is None:
     raise Exception("Please proveide the serial port of the plotter")
 
-parser = Parser.from_file("src/test/bezier.svg")
+TEST_SVG = os.getenv("PLOTTER_TEST_SVG")
+if TEST_SVG is None:
+    raise Exception("Please proveide a testing SVG")
+
+parser = Parser.from_file(TEST_SVG)
 
 plotter = Plotter(PORT)
 plotter.convert_curves(parser.curves)
