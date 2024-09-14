@@ -20,3 +20,5 @@ __pycache__/
 # Flask stuff
 instance/
 
+*.afdesign
+*.afdesign~lock~

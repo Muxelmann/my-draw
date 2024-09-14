@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 101 101" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-miterlimit:10;">
+    <g>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C1,201 99,-101 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C1,181 99,-81 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C1,161 99,-61 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C1,141 99,-41 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C1,121 99,-21 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C1,101 99,-1 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C1,81 99,19 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C1,61 99,39 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C1,41 99,59 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C1,21 99,79 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1L99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C21,1 79,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C41,1 59,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C61,1 39,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C81,1 19,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C101,1 -1,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C121,1 -21,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C141,1 -41,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C161,1 -61,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <path d="M1,1C181,1 -81,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        <g transform="matrix(-1,0,0,-1,100,100)">
+            <path d="M1,1C201,1 -101,99 99,99" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+        </g>
+        <rect id="Outline" x="0" y="0" width="100" height="100" style="fill:none;fill-rule:nonzero;stroke:black;stroke-width:0.1px;"/>
+    </g>
+</svg>
