@@ -1,4 +1,5 @@
 import serial
+import time
 from tqdm import tqdm
 
 
@@ -73,40 +74,42 @@ class Plotter:
         self.gcode_list.append("$1=0; Turn servo motors off")
         self.gcode_list.append("G0 X0 Y0; Go back home")
 
-    def exec_command(self, cmd: str) -> bool:
+    def exec_command(self, cmd: str, tries: int = 10) -> bool:
         """Executes a single C-Code command
 
         Args:
             cmd (str): C-Code command
+            tries (int, optional): Numer of retries before giving up. Defaults to 10.
 
         Returns:
             bool: True if success
         """
-
         if cmd[0] == "$":  # Wait for idle when changing GRBL settings
+            in_idle = False
             while True:
                 self.ser.write(b"?\n")  # Query for status
-                s = self.ser.readline()[1:-3].split(b"|")
                 r = self.ser.readline()
-                if r != b"ok\r\n":
-                    print(r)
-                    return False
 
-                if s[0] == b"Idle":
-                    break  # Continue with command when in Idle
-                elif s[0] == b"Run":
-                    # time.sleep(0.1)
-                    continue  # Wait if still running
-                else:
-                    # Error if unknown state
-                    print(s)
-                    return False
+                # Once idle is detected ...
+                if not in_idle and r[1:5] != b"Idle":
+                    continue
+
+                # ... confirm idle and ...
+                in_idle = True
+
+                # ... wait for command acknowledgement
+                if r != b"ok\r\n":
+                    continue
+
+                break
 
         while True:
-            self.ser.write(f"{cmd}\n".encode("utf-8"))
-            r = self.ser.readline()
-            if r == b"ok\r\n":
-                return True
+            if tries > 0:
+                self.ser.write(f"{cmd}\n".encode("utf-8"))
+                r = self.ser.readline()
+                if r == b"ok\r\n":
+                    return True
+                tries -= 1
             else:
                 print(r)
                 return False
