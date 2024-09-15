@@ -11,7 +11,7 @@ class Parser:
         self,
         svg_string: str,
         parse_on_init: bool = True,
-        interpolate_on_init: bool = True,
+        interpolate_on_init: bool = False,
         scale_format: str | None = None,
     ) -> None:
         self.curves = []
