@@ -103,9 +103,9 @@ class Plotter:
 
                 break
 
+        self.ser.write(f"{cmd}\n".encode("utf-8"))
         while True:
             if tries > 0:
-                self.ser.write(f"{cmd}\n".encode("utf-8"))
                 r = self.ser.readline()
                 if r == b"ok\r\n":
                     return True
