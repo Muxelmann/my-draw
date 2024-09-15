@@ -1,5 +1,4 @@
 import serial
-import time
 from tqdm import tqdm
 
 
@@ -22,7 +21,7 @@ class Plotter:
         Raises:
             Exception: _description_
         """
-        self.ser = serial.Serial(port, 115200)
+        self.ser = serial.Serial(port, 115200, timeout=0.5)
 
         self.feed_speed = feed_speed
         self.down_dist = down_dist
@@ -74,28 +73,40 @@ class Plotter:
         self.gcode_list.append("$1=0; Turn servo motors off")
         self.gcode_list.append("G0 X0 Y0; Go back home")
 
-    def exec_command(self, cmd: str, tries: int = 10) -> bool:
+    def exec_command(self, cmd: str) -> bool:
         """Executes a single C-Code command
 
         Args:
             cmd (str): C-Code command
-            tries (int, optional): How often to resend a command if it failed (wait 0.5 seconds for each try). Defaults to 10.
 
         Returns:
             bool: True if success
         """
 
-        while True:
-            self.ser.write(cmd.encode("ASCII"))
-            self.ser.write(b"\n")
-            r = self.ser.readline()
+        if cmd[0] == "$":  # Wait for idle when changing GRBL settings
+            while True:
+                self.ser.write(b"?\n")  # Query for status
+                s = self.ser.readline()[1:-3].split(b"|")
+                r = self.ser.readline()
+                if r != b"ok\r\n":
+                    print(r)
+                    return False
 
+                if s[0] == b"Idle":
+                    break  # Continue with command when in Idle
+                elif s[0] == b"Run":
+                    # time.sleep(0.1)
+                    continue  # Wait if still running
+                else:
+                    # Error if unknown state
+                    print(s)
+                    return False
+
+        while True:
+            self.ser.write(f"{cmd}\n".encode("utf-8"))
+            r = self.ser.readline()
             if r == b"ok\r\n":
                 return True
-
-            if tries > 0:
-                tries -= 1
-                time.sleep(0.5)
             else:
                 print(r)
                 return False
@@ -172,7 +183,7 @@ class Plotter:
         return self.exec_commands(
             f"""
             G0 Z1; Move pen down
-            $1=0; Keep stepper motors on ("M84 S0" for Marlin)
+            $1=0; Keep stepper motors off ("M84 S0" for Marlin)
             """
         )
 
