@@ -81,20 +81,20 @@ Because the Bézier points of each curve (especially the control points) rarely 
 
 ![](https://upload.wikimedia.org/wikipedia/commons/d/db/Bézier_3_big.gif)
 
-To estimate the point at each time $t$, the points $P_0$ to $P_3$ are treated as vectors $\vec{p}_0$ to $\vec{p}_3$. Here, $\vec{p}_i = (p_{i,x}, p_{i,y})$ where $i \in [0, ..., 3]$:
+To estimate the point at each time $t$, the points $P\_0$ to $P\_3$ are treated as vectors $\vec{p}\_0$ to $\vec{p}\_3$. Here, $\vec{p}\_i = (p_{i,x}, p_{i,y})$ where $i \in [0, ..., 3]$:
 
 $$
 \begin{align}
-\vec{p}_{01} &= \vec{p}_{0} + (\vec{p}_{1} - \vec{p}_{0}) \cdot t\\
-\vec{p}_{12} &= \vec{p}_{1} + (\vec{p}_{2} - \vec{p}_{1}) \cdot t\\
-\vec{p}_{23} &= \vec{p}_{2} + (\vec{p}_{3} - \vec{p}_{2}) \cdot t\\
-\vec{p}_{0112} &= \vec{p}_{01} + (\vec{p}_{12} - \vec{p}_{01}) \cdot t\\
-\vec{p}_{1223} &= \vec{p}_{12} + (\vec{p}_{23} - \vec{p}_{12}) \cdot t\\
-\vec{p}_{01121223} &= \vec{p}_{0112} + (\vec{p}_{1223} - \vec{p}_{0112}) \cdot t
+\vec{p}\_{01} &= \vec{p}\_{0} + (\vec{p}\_{1} - \vec{p}\_{0}) \cdot t\\
+\vec{p}\_{12} &= \vec{p}\_{1} + (\vec{p}\_{2} - \vec{p}\_{1}) \cdot t\\
+\vec{p}\_{23} &= \vec{p}\_{2} + (\vec{p}\_{3} - \vec{p}\_{2}) \cdot t\\
+\vec{p}\_{0112} &= \vec{p}\_{01} + (\vec{p}\_{12} - \vec{p}\_{01}) \cdot t\\
+\vec{p}\_{1223} &= \vec{p}\_{12} + (\vec{p}\_{23} - \vec{p}\_{12}) \cdot t\\
+\vec{p}\_{01121223} &= \vec{p}\_{0112} + (\vec{p}\_{1223} - \vec{p}\_{0112}) \cdot t
 \end{align}
 $$
 
-Here, the point represented by $\vec{p}_{01121223}$ is a point lying on the Bézier curve. For long Bézier curves, the number of interpolated points is high (i.e. 100 at most) and for short Bézier curves the number of interpolated points is low (i.e. 3 at least).
+Here, the point represented by $\vec{p}\_{01121223}$ is a point lying on the Bézier curve. For long Bézier curves, the number of interpolated points is high (i.e. 100 at most) and for short Bézier curves the number of interpolated points is low (i.e. 3 at least).
 
 ##### Optimization
 
