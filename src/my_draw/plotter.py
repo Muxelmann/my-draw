@@ -87,7 +87,9 @@ class Plotter:
             in_idle = False
             while True:
                 self.ser.write(b"?\n")  # Query for status
-                r = self.ser.readline()
+                r = ""
+                while len(r) == 0:
+                    r = self.ser.readline()
 
                 # Once idle is detected ...
                 if not in_idle and r[1:5] != b"Idle":
@@ -105,7 +107,9 @@ class Plotter:
         self.ser.write(f"{cmd}\n".encode("utf-8"))
         while True:
             if tries > 0:
-                r = self.ser.readline()
+                r = ""
+                while len(r) == 0:
+                    r = self.ser.readline()
                 if r == b"ok\r\n":
                     return True
                 tries -= 1
