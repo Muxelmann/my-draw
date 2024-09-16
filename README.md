@@ -148,11 +148,13 @@ Or make sure the Y values are inverted when sending them to the plotter.
 
 Sometimes when changing a setting, an error is returned by the plotter instead of `b"ok\r\n"`. Usually this is error code 8, indicating an error because a `$` command is only valid when the plotter is in `Idle` state. To this end, an state checking loop precedes command sending stage, only for `$` commands.
 
-###### ~~Lost command~~
+###### ~~Lost command~~ Repeated read
 
 Also, sometimes the plotter does not receive or acknowledge a command. To address this issue, a command is repeatedly sent a certain number of tries with a delay between tries.
 
-**Update**: This appears no longer necessary in view of fix for double `ok\r\n` below.
+**Update 1**: This appears no longer necessary in view of fix for double `ok\r\n` below.
+
+**Update 2**: Sometimes the a status report (`$` command) is read even though a move command was sent. Because status is irrelevant for moves, tries have been re-introduced to read out (i.e., empty) the buffer until the `ok\r\n` is read.
 
 ###### Double OK
 
