@@ -18,6 +18,7 @@ class Parser:
 
         self.current_curve = []
         self.current_transforms = []
+        self.current_style = []
         self.last_command = None
 
         root = ElementTree.fromstring(svg_string)
@@ -40,6 +41,7 @@ class Parser:
     def parse(self, root: ElementTree.Element, transform: str | None = None) -> None:
 
         self.current_transforms.append(transform)
+        self.current_style.append(root.get("style"))
 
         for element in list(root):
 
@@ -71,6 +73,7 @@ class Parser:
                 raise Exception(f"Unknown tag {element.tag}")
 
         self.current_transforms.pop()
+        self.current_style.pop()
 
     def tx_matrix(self, p: list) -> None:
         pass
