@@ -14,11 +14,12 @@ class Parser:
         interpolate_on_init: bool = False,
         scale_format: str | None = None,
     ) -> None:
-        self.curves = []
+        self._all_curves = []
 
+        self.element_count = 0
         self.current_curve = []
         self.current_transforms = []
-        self.current_style = []
+        self.current_style = {}
         self.last_command = None
 
         root = ElementTree.fromstring(svg_string)
@@ -38,12 +39,41 @@ class Parser:
         with open(path, "r") as f:
             return Parser(f.read())
 
+    @property
+    def curves(self) -> list:
+        """Returns a list of all curves, regardless of style and which element they belong to
+
+        Returns:
+            list: list of curves, each curve being a list of [x, y] points
+        """
+        return [c["curve"] for c in self._all_curves]
+
+    @property
+    def curves_to_stroke(self) -> list:
+        curves_to_stroke = []
+        for curve_dict in self._all_curves:
+            if "stroke" in self.current_style.keys():
+                curves_to_stroke.append(curve_dict["curve"])
+
+        return curves_to_stroke
+
+    @property
+    def curves_for_filling(self) -> dict:
+        # TODO: get all curves
+
+        return []
+
     def parse(self, root: ElementTree.Element, transform: str | None = None) -> None:
 
         self.current_transforms.append(transform)
-        self.current_style.append(root.get("style"))
 
         for element in list(root):
+            self.element_count += 1
+
+            style = element.get("style", "")
+            self.current_style = dict(
+                [s.split(":") for s in style.split(";") if len(s) > 0]
+            )
 
             if element.tag == f"{NAMESPACE}path":
                 self.convert_path(element.get("d"), transform)
@@ -73,7 +103,6 @@ class Parser:
                 raise Exception(f"Unknown tag {element.tag}")
 
         self.current_transforms.pop()
-        self.current_style.pop()
 
     def tx_matrix(self, p: list) -> None:
         pass
@@ -135,14 +164,23 @@ class Parser:
 
     def save_current_curve(self) -> None:
         self.apply_transforms()
-        self.curves.append(copy.deepcopy(self.current_curve))
+        self._all_curves.append(
+            {
+                "id": self.element_count,
+                "style": self.current_style,
+                "curve": copy.deepcopy(self.current_curve),
+            }
+        )
         self.current_curve = []
 
     def move(self, p: list) -> None:
         self.current_curve.append(p)
 
     def move_relative(self, p: list) -> None:
-        p = [self.curves[-1][-1][0] + p[0], self.curves[-1][-1][1] + p[1]]
+        p = [
+            self.current_curve[-1][-1][0] + p[0],
+            self.current_curve[-1][-1][1] + p[1],
+        ]
         self.move(p)
 
     def line(self, p: list) -> None:
@@ -343,7 +381,8 @@ class Parser:
         raise Exception("Non-empty def element not handled")
 
     def interpolate(self) -> None:
-        for i, curve in enumerate(self.curves):
+        for i, curve_dict in enumerate(self._all_curves):
+            curve = curve_dict["curve"]
             if (len(curve) - 1) % 3 != 0:
                 raise Exception("Curve points are not proveided successively!")
 
@@ -351,17 +390,18 @@ class Parser:
             for j in range(0, len(curve) - 1, 3):
                 p0, p1, p2, p3 = curve[j : j + 4]  # start control1 control2 end
 
-                # Make interpolation pounts dependent on total euclidean distance from p0 > p1 > p2 > p3
+                # Make number of interpolation points dependent
+                # on total euclidean distance from p0 > p1 > p2 > p3
+                d = round(
+                    math.sqrt((p1[0] - p0[0]) ** 2 + (p1[1] - p0[1]) ** 2)
+                    + math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
+                    + math.sqrt((p3[0] - p2[0]) ** 2 + (p3[1] - p2[1]) ** 2)
+                )
                 d = max(
                     3,
                     min(
                         100,
-                        round(
-                            math.sqrt((p1[0] - p0[0]) ** 2 + (p1[1] - p0[1]) ** 2)
-                            + math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
-                            + math.sqrt((p3[0] - p2[0]) ** 2 + (p3[1] - p2[1]) ** 2)
-                        )
-                        // 5,
+                        d // 5,
                     ),
                 )
 
@@ -395,23 +435,23 @@ class Parser:
                     ]
                     new_curve.append(p01121223)
             new_curve.append(p3)
-            self.curves[i] = new_curve
+            self._all_curves[i]["curve"] = new_curve
 
     def get_min_max(self) -> tuple[float]:
-        all_x = [v[0] for curve in self.curves for v in curve]
-        all_y = [v[1] for curve in self.curves for v in curve]
+        all_x = [v[0] for curve_dict in self._all_curves for v in curve_dict["curve"]]
+        all_y = [v[1] for curve_dict in self._all_curves for v in curve_dict["curve"]]
 
         return min(all_x), min(all_y), max(all_x), max(all_y)
 
     def offset_by(self, x_offset: float, y_offset: float) -> None:
-        for i, curve in enumerate(self.curves):
-            for j, (x, y) in enumerate(curve):
-                self.curves[i][j] = [x + x_offset, y + y_offset]
+        for i, curve_dict in enumerate(self._all_curves):
+            for j, (x, y) in enumerate(curve_dict["curve"]):
+                self._all_curves[i]["curve"][j] = [x + x_offset, y + y_offset]
 
     def scale_by(self, x_scale: float, y_scale: float) -> None:
-        for i, curve in enumerate(self.curves):
-            for j, (x, y) in enumerate(curve):
-                self.curves[i][j] = [x * x_scale, y * y_scale]
+        for i, curve_dict in enumerate(self._all_curves):
+            for j, (x, y) in enumerate(curve_dict["curve"]):
+                self._all_curves[i]["curve"][j] = [x * x_scale, y * y_scale]
 
     def scale_to_fit(
         self,
@@ -467,12 +507,12 @@ class Parser:
             scale = w_target / w_source
         self.scale_by(scale, scale)
 
-    def optimize_curves(self) -> None:
-        optimized_curves = [self.curves.pop(0)]
+    def optimize_curves(self, combine_different_elements: bool = False) -> None:
+        optimized_curves_dict = [self._all_curves.pop(0)]
 
-        while len(self.curves) > 0:
+        while len(self._all_curves) > 0:
 
-            last_end = optimized_curves[-1][-1]
+            last_end = optimized_curves_dict[-1]["curve"][-1]
 
             # Find closest start/end curve
 
@@ -480,9 +520,9 @@ class Parser:
             nn_idx: int | None = None
             use_start: bool | None = None
 
-            for i, curve in enumerate(self.curves):
-                curve_start = curve[0]
-                curve_end = curve[-1]
+            for i, curve_dict in enumerate(self._all_curves):
+                curve_start = curve_dict["curve"][0]
+                curve_end = curve_dict["curve"][-1]
 
                 dist_to_start = math.sqrt(
                     (curve_start[0] - last_end[0]) ** 2
@@ -504,15 +544,22 @@ class Parser:
 
             # Append curve based on closest start/end and reverse if necessary
 
-            curve = self.curves.pop(nn_idx)
+            curve_dict = self._all_curves.pop(nn_idx)
             if not use_start:
-                curve.reverse()
+                curve_dict["curve"].reverse()
 
-            if nn_dist > 0:
-                # Append new curve if not continuing at same location
-                optimized_curves.append(curve)
+            if (
+                nn_dist == 0
+                and optimized_curves_dict[-1]["style"] == curve_dict["style"]
+                and (
+                    combine_different_elements
+                    or optimized_curves_dict[-1]["id"] == curve_start["id"]
+                )
+            ):
+                # Combine curves if continuing at same location and same style
+                optimized_curves_dict[-1] += curve_dict["curve"][1:]
             else:
-                # Combine curves if continuing at same location
-                optimized_curves[-1] += curve[1:]
+                # Append new curve if not continuing at same location
+                optimized_curves_dict.append(curve_dict)
 
-        self.curves = optimized_curves
+        self._all_curves = optimized_curves_dict
