@@ -58,10 +58,10 @@ class Parser:
         """
         curves_to_stroke = []
         for curve_dict in self._all_curves:
-            if "stroke" not in self.current_style.keys():
+            if "stroke" not in curve_dict["style"].keys():
                 continue
 
-            if self.current_style["stroke"].lower() in ["none", "transparent"]:
+            if curve_dict["style"]["stroke"].lower() in ["none", "transparent"]:
                 continue
 
             curves_to_stroke.append(curve_dict["curve"])
@@ -69,11 +69,11 @@ class Parser:
         return curves_to_stroke
 
     @property
-    def curves_for_filling(self) -> dict:
+    def curves_to_fill(self) -> dict:
         # TODO: get curves to be stroked in some logical sense
         # e.g., <CURVES>[<STROKE_COLOR>] = [curve1, curve2, ...]
 
-        return []
+        return {}
 
     def parse(self, root: ElementTree.Element, transform: str | None = None) -> None:
 
