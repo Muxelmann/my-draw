@@ -49,31 +49,112 @@ class Parser:
         return [c["curve"] for c in self._all_curves]
 
     @property
-    def curves_to_stroke(self) -> list:
-        """A list of curves that should be stroked.
-        Stroke color is irrelevant as long as the stroke is not `none` or `transparent`.
+    def curves_to_stroke(self) -> dict:
+        """A dict of curves that should be stroked.
+        Curves are matched by by stroke style.
 
         Returns:
-            list: list of curves, each curve being a list of [x, y] points
+            dict: dict of style-keys for curves to be stroked, each curve being a list of [x, y] points
         """
-        curves_to_stroke = []
+        curves_to_stroke = {}
+
         for curve_dict in self._all_curves:
             if "stroke" not in curve_dict["style"].keys():
                 continue
 
-            if curve_dict["style"]["stroke"].lower() in ["none", "transparent"]:
+            stroke_style = curve_dict["style"]["stroke"].lower()
+
+            if stroke_style in ["none", "transparent"]:
                 continue
 
-            curves_to_stroke.append(curve_dict["curve"])
+            if stroke_style not in curves_to_stroke.keys():
+                curves_to_stroke[stroke_style] = []
+
+            curves_to_stroke[stroke_style].append(curve_dict["curve"])
 
         return curves_to_stroke
 
     @property
     def curves_to_fill(self) -> dict:
-        # TODO: get curves to be stroked in some logical sense
-        # e.g., <CURVES>[<STROKE_COLOR>] = [curve1, curve2, ...]
+        """A dict of curves that should be filled.
+        Curves are matched by by fill style.
 
-        return {}
+        Returns:
+            dict: dict of style-keys for curves to be filled, each curve being a list of [x, y] points
+        """
+        curves_to_fill = {}
+
+        for curve_dict in self._all_curves:
+            if "fill" not in curve_dict["style"].keys():
+                # Unspecified fill means fill with black (apparently)
+                curve_dict["style"]["fill"] = "black"
+
+            fill_style = curve_dict["style"]["fill"].lower()
+
+            if fill_style in ["none", "transparent"]:
+                continue
+
+            if fill_style not in curves_to_fill.keys():
+                curves_to_fill[fill_style] = []
+
+            curves_to_fill[fill_style].append(curve_dict["curve"])
+
+        return curves_to_fill
+
+    @property
+    def curves_for_filling(self) -> dict:
+        """A dict of curves for filling geometries of different filling styles.
+
+        Only returns curves for filling black.
+
+        Returns:
+            dict: dict of style-keys for filling-curves, each curve being a list of [x, y] points
+        """
+        curves_to_fill = self.curves_to_fill
+        curves_for_filling = {}
+
+        for curve_style in curves_to_fill.keys():
+            curves_for_filling[curve_style] = []
+
+            # Ray casting algorithm to fill curves
+            # 0.2 mm spacing typically results in completely filled in area i.e., "black"
+            for curve_idx, curve in enumerate(curves_to_fill[curve_style]):
+                min_y = round(min([p[1] for p in curve]) * 10)
+                max_y = round(max([p[1] for p in curve]) * 10)
+                intersections = {}
+                for i in range(min_y, max_y, 2):
+                    y = i / 10
+
+                    for j in range(len(curve)):
+                        p0 = curve[j - 1]
+                        p1 = curve[j]
+
+                        # Continue if line does not cross edge
+                        if (p0[1] < y and y <= p1[1]) or (p1[1] < y and y <= p0[1]):
+                            g = (p1[0] - p0[0]) / (p1[1] - p0[1])
+                            x0 = p1[0] - g * p1[1]
+                            x = g * y + x0
+
+                            if y not in intersections.keys():
+                                intersections[y] = []
+                            intersections[y].append(x)
+
+                for y in intersections.keys():
+                    intersections[y].sort()
+                    for i in range(0, len(intersections[y]), 2):
+                        x0 = intersections[y][i]
+                        x1 = intersections[y][i + 1]
+                        curve_for_filling = {
+                            "id": curve_idx,
+                            "style": curve_style,
+                            "curve": [[x0, y], [x1, y]],
+                        }
+                        curves_for_filling[curve_style].append(curve_for_filling)
+
+            curves_for_filling[curve_style] = [
+                c["curve"] for c in curves_for_filling[curve_style]
+            ]
+        return curves_for_filling
 
     def parse(self, root: ElementTree.Element, transform: str | None = None) -> None:
 
@@ -117,7 +198,6 @@ class Parser:
         self.current_transforms.pop()
 
     def tx_matrix(self, p: list) -> None:
-        pass
         for i in range(len(self.current_curve)):
             self.current_curve[i] = [
                 self.current_curve[i][0] * p[0]
@@ -392,9 +472,10 @@ class Parser:
 
         raise Exception("Non-empty def element not handled")
 
-    def interpolate(self) -> None:
-        for i, curve_dict in enumerate(self._all_curves):
-            curve = curve_dict["curve"]
+    @staticmethod
+    def interpolate(curves_to_interpolate: list) -> list:
+        curves = copy.deepcopy(curves_to_interpolate)
+        for i, curve in enumerate(curves):
             if (len(curve) - 1) % 3 != 0:
                 raise Exception("Curve points are not proveided successively!")
 
@@ -447,7 +528,9 @@ class Parser:
                     ]
                     new_curve.append(p01121223)
             new_curve.append(p3)
-            self._all_curves[i]["curve"] = new_curve
+            curves[i] = new_curve
+
+        return curves
 
     def get_min_max(self) -> tuple[float]:
         all_x = [v[0] for curve_dict in self._all_curves for v in curve_dict["curve"]]
@@ -519,12 +602,15 @@ class Parser:
             scale = w_target / w_source
         self.scale_by(scale, scale)
 
-    def optimize_curves(self, combine_different_elements: bool = False) -> None:
-        optimized_curves_dict = [self._all_curves.pop(0)]
+    @staticmethod
+    def optimize(curves_to_optimize: list) -> list:
+        curves = copy.deepcopy(curves_to_optimize)
 
-        while len(self._all_curves) > 0:
+        optimized_curves = [curves.pop(0)]
 
-            last_end = optimized_curves_dict[-1]["curve"][-1]
+        while len(curves) > 0:
+
+            last_end = optimized_curves[-1][-1]
 
             # Find closest start/end curve
 
@@ -532,9 +618,9 @@ class Parser:
             nn_idx: int | None = None
             use_start: bool | None = None
 
-            for i, curve_dict in enumerate(self._all_curves):
-                curve_start = curve_dict["curve"][0]
-                curve_end = curve_dict["curve"][-1]
+            for i, curve_dict in enumerate(curves):
+                curve_start = curve_dict[0]
+                curve_end = curve_dict[-1]
 
                 dist_to_start = math.sqrt(
                     (curve_start[0] - last_end[0]) ** 2
@@ -556,22 +642,15 @@ class Parser:
 
             # Append curve based on closest start/end and reverse if necessary
 
-            curve_dict = self._all_curves.pop(nn_idx)
+            curve_dict = curves.pop(nn_idx)
             if not use_start:
-                curve_dict["curve"].reverse()
+                curve_dict.reverse()
 
-            if (
-                nn_dist == 0
-                and optimized_curves_dict[-1]["style"] == curve_dict["style"]
-                and (
-                    combine_different_elements
-                    or optimized_curves_dict[-1]["id"] == curve_start["id"]
-                )
-            ):
+            if nn_dist == 0:
                 # Combine curves if continuing at same location and same style
-                optimized_curves_dict[-1] += curve_dict["curve"][1:]
+                optimized_curves[-1] += curve_dict[1:]
             else:
                 # Append new curve if not continuing at same location
-                optimized_curves_dict.append(curve_dict)
+                optimized_curves.append(curve_dict)
 
-        self._all_curves = optimized_curves_dict
+        return optimized_curves
