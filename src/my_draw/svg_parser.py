@@ -112,17 +112,19 @@ class Parser:
         """
         curves_to_fill = self.curves_to_fill
         curves_for_filling = {}
+        spacing = 0.2  # TODO: consider making this a property and or this method a get-function wirg arg
 
         for curve_style in curves_to_fill.keys():
             curves_for_filling[curve_style] = []
 
+            # Get max/min for all y-coordinates and keep track of intersections only for current y
             all_y = [p[1] for c in curves_to_fill[curve_style] for p in c]
             min_y = round(min(all_y) * 10)
             max_y = round(max(all_y) * 10)
 
             # Ray casting algorithm to fill curves
             # 0.2 mm spacing typically results in completely filled in area i.e., "black"
-            for i in range(min_y, max_y, 2):
+            for i in range(min_y, max_y, int(spacing * 10)):
                 y = i / 10
                 intersections = []
                 for curve in curves_to_fill[curve_style]:
@@ -141,8 +143,10 @@ class Parser:
 
                 intersections.sort()
                 for i in range(0, len(intersections), 2):
-                    x0 = intersections[i]
-                    x1 = intersections[i + 1]
+                    x0 = intersections[i] + spacing
+                    x1 = intersections[i + 1] - spacing
+                    if x0 > x1:
+                        continue
                     curves_for_filling[curve_style].append([[x0, y], [x1, y]])
 
         return curves_for_filling
