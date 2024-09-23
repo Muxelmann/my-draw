@@ -115,15 +115,17 @@ class Parser:
 
         for curve_style in curves_to_fill.keys():
             curves_for_filling[curve_style] = []
-            intersections = {}
+
+            all_y = [p[1] for c in curves_to_fill[curve_style] for p in c]
+            min_y = round(min(all_y) * 10)
+            max_y = round(max(all_y) * 10)
 
             # Ray casting algorithm to fill curves
             # 0.2 mm spacing typically results in completely filled in area i.e., "black"
-            for curve_idx, curve in enumerate(curves_to_fill[curve_style]):
-                min_y = round(min([p[1] for p in curve]) * 10)
-                max_y = round(max([p[1] for p in curve]) * 10)
-                for i in range(min_y, max_y, 2):
-                    y = i / 10
+            for i in range(min_y, max_y, 2):
+                y = i / 10
+                intersections = []
+                for curve in curves_to_fill[curve_style]:
 
                     for j in range(len(curve)):
                         p0 = curve[j - 1]
@@ -135,15 +137,12 @@ class Parser:
                             x0 = p1[0] - g * p1[1]
                             x = g * y + x0
 
-                            if y not in intersections.keys():
-                                intersections[y] = []
-                            intersections[y].append(x)
+                            intersections.append(x)
 
-            for y in intersections.keys():
-                intersections[y].sort()
-                for i in range(0, len(intersections[y]), 2):
-                    x0 = intersections[y][i]
-                    x1 = intersections[y][i + 1]
+                intersections.sort()
+                for i in range(0, len(intersections), 2):
+                    x0 = intersections[i]
+                    x1 = intersections[i + 1]
                     curves_for_filling[curve_style].append([[x0, y], [x1, y]])
 
         return curves_for_filling
