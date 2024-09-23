@@ -115,13 +115,13 @@ class Parser:
 
         for curve_style in curves_to_fill.keys():
             curves_for_filling[curve_style] = []
+            intersections = {}
 
             # Ray casting algorithm to fill curves
             # 0.2 mm spacing typically results in completely filled in area i.e., "black"
             for curve_idx, curve in enumerate(curves_to_fill[curve_style]):
                 min_y = round(min([p[1] for p in curve]) * 10)
                 max_y = round(max([p[1] for p in curve]) * 10)
-                intersections = {}
                 for i in range(min_y, max_y, 2):
                     y = i / 10
 
@@ -139,21 +139,13 @@ class Parser:
                                 intersections[y] = []
                             intersections[y].append(x)
 
-                for y in intersections.keys():
-                    intersections[y].sort()
-                    for i in range(0, len(intersections[y]), 2):
-                        x0 = intersections[y][i]
-                        x1 = intersections[y][i + 1]
-                        curve_for_filling = {
-                            "id": curve_idx,
-                            "style": curve_style,
-                            "curve": [[x0, y], [x1, y]],
-                        }
-                        curves_for_filling[curve_style].append(curve_for_filling)
+            for y in intersections.keys():
+                intersections[y].sort()
+                for i in range(0, len(intersections[y]), 2):
+                    x0 = intersections[y][i]
+                    x1 = intersections[y][i + 1]
+                    curves_for_filling[curve_style].append([[x0, y], [x1, y]])
 
-            curves_for_filling[curve_style] = [
-                c["curve"] for c in curves_for_filling[curve_style]
-            ]
         return curves_for_filling
 
     def parse(self, root: ElementTree.Element, transform: str | None = None) -> None:
@@ -566,6 +558,17 @@ class Parser:
             "a8": (52, 74),
             "a9": (37, 52),
             "a10": (26, 37),
+            "b0": (1000, 1414),
+            "b1": (707, 1000),
+            "b2": (500, 707),
+            "b3": (353, 500),
+            "b4": (250, 353),
+            "b5": (176, 250),
+            "b6": (125, 176),
+            "b7": (88, 125),
+            "b8": (62, 88),
+            "b9": (44, 62),
+            "b10": (31, 44),
         }
 
         if isinstance(scale_format, str):
@@ -578,8 +581,10 @@ class Parser:
                 w_target, h_target = formats[scale_format]
             else:
                 h_target, w_target = formats[scale_format]
-        else:
+        elif isinstance(scale_format, list) or isinstance(scale_format, tuple):
             w_target, h_target = scale_format
+        else:
+            raise Exception(f"Unknown scale format: {scale_format}")
 
         aspect_target = w_target / h_target
 
