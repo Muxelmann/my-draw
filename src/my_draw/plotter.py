@@ -23,9 +23,9 @@ class Plotter:
         """
         self.ser = serial.Serial(port, 115200, timeout=0.5)
 
-        self.feed_speed = feed_speed
-        self.down_dist = down_dist
-        self.gcode_list = []
+        self._feed_speed = feed_speed
+        self._down_dist = down_dist
+        self._gcode_list = []
 
         if not home:
             return
@@ -35,43 +35,46 @@ class Plotter:
 
     @property
     def gcode(self) -> str:
-        return "\n".join(self.gcode_list)
+        return "\n".join(self._gcode_list)
 
     def save_gcode(self, file_path: str) -> None:
         with open(file_path, "w") as f:
             f.write(self.gcode)
 
-    def convert_curves(self, curves: list, home: bool = False) -> None:
-        self.gcode_list = []
-
+    def init_gcode(self, home: bool = False) -> None:
+        self._gcode_list = []
         if home:
-            self.gcode_list.append("$H; Homes plotter")
+            self._gcode_list.append("$H; Homes plotter")
 
-        self.gcode_list.append("G92 X0 Y0; Set zero position")
-        self.gcode_list.append("G21; Set mm units")
-        self.gcode_list.append(
+        self._gcode_list.append("G92 X0 Y0; Set zero position")
+        self._gcode_list.append("G21; Set mm units")
+        self._gcode_list.append(
             "G90; Absolute positioning - G91 would be relative positioning"
         )
-        self.gcode_list.append("$1=255; Keep servo motors on")
+        self._gcode_list.append("$1=255; Keep servo motors on")
+
+    def finish_gcode(self) -> None:
+        self._gcode_list.append("$1=0; Turn servo motors off")
+
+    def convert_curves(self, curves: list, home: bool = False) -> None:
 
         for curve in curves:
             for i, (x, y) in enumerate(curve):
 
                 if i == 0:
-                    self.gcode_list.append(
+                    self._gcode_list.append(
                         f"G0 X{round(x, 2)} Y{round(-y, 2)}; Move to start of path"
                     )
-                    self.gcode_list.append("G0 Z5; Move pen down")
+                    self._gcode_list.append("G0 Z5; Move pen down")
 
                 else:
-                    self.gcode_list.append(
+                    self._gcode_list.append(
                         f"G1 F4000 X{round(x, 2)} Y{round(-y, 2)}; Draw"
                     )
 
-            self.gcode_list.append("G0 Z0; Move pen up")
+            self._gcode_list.append("G0 Z0; Move pen up")
 
-        self.gcode_list.append("$1=0; Turn servo motors off")
-        self.gcode_list.append("G0 X0 Y0; Go back home")
+        self._gcode_list.append("G0 X0 Y0; Go back home")
 
     def exec_command(self, cmd: str, tries: int = 10) -> bool:
         """Executes a single C-Code command
@@ -176,7 +179,7 @@ class Plotter:
         return self.exec_commands(
             f"""
             $1=255; Keep stepper motors on ("M84 S0" for Marlin)
-            G0 Z{self.down_dist}; Move pen down
+            G0 Z{self._down_dist}; Move pen down
             """
         )
 
@@ -198,5 +201,5 @@ class Plotter:
 
     def draw(self, x: float, y: float) -> bool:
         return self.exec_command(
-            f"G1 F{self.feed_speed} X{round(x, 2)} Y{round(-y, 2)}"
+            f"G1 F{self._feed_speed} X{round(x, 2)} Y{round(-y, 2)}"
         )
