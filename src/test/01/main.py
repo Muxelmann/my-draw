@@ -14,5 +14,7 @@ parser.optimize_curves()
 parser.scale_to_fit("a6")
 
 plotter = Plotter(PORT)
+plotter.init_gcode()
 plotter.convert_curves(parser.curves)
+plotter.finish_gcode()
 plotter.exec_commands()
