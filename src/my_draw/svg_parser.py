@@ -722,4 +722,6 @@ class Parser:
             if not use_start:
                 curve.reverse()
 
+            optimized_curves.append(curve)
+
         return optimized_curves
