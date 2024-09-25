@@ -158,10 +158,21 @@ class Parser:
         for element in list(root):
             self.element_count += 1
 
+            # Extract CSS style
             style = element.get("style", "")
             self.current_style = dict(
                 [s.split(":") for s in style.split(";") if len(s) > 0]
             )
+
+            # Extract stroke defined in HTML
+            stroke = element.get("stroke")
+            if stroke is not None:
+                self.current_style["stroke"] = stroke.replace(" ", "")
+
+            # Extract fill defined in HTML
+            fill = element.get("fill")
+            if fill is not None:
+                self.current_style["fill"] = fill.replace(" ", "")
 
             if element.tag == f"{NAMESPACE}path":
                 self.convert_path(element.get("d"), transform)
