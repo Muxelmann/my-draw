@@ -480,6 +480,21 @@ class Parser:
 
     @staticmethod
     def interpolate(curves_to_interpolate: list) -> list:
+        """Interpolates bezier a list of successive curves.
+
+        Here, a start point is followed by two control points and
+        an end point that is also the start point of the next
+        Bezier curve, resulting (always) in N * 3 + 1 points.
+
+        Args:
+            curves_to_interpolate (list): List of Bezier curves
+
+        Raises:
+            Exception: There must be N * 3 + 1 points
+
+        Returns:
+            list: Interpolated points
+        """
         curves = copy.deepcopy(curves_to_interpolate)
         for i, curve in enumerate(curves):
             if (len(curve) - 1) % 3 != 0:
@@ -622,7 +637,49 @@ class Parser:
         self.scale_by(scale, scale)
 
     @staticmethod
+    def combine_curves(curves_to_combine: list) -> list:
+        """Combines curves when no x/y change.
+
+        Specifically, when two successive curves end and start on
+        the same point, then they are combined into one curve. The
+        resultant list of curves is as most as long as the
+        provided list of curves.
+
+        Args:
+            curves_to_combine (list): List of curves to be combined
+
+        Returns:
+            list: Optimized curves
+        """
+        curves = copy.deepcopy(curves_to_combine)
+
+        combine_curves = [curves.pop(0)]
+
+        while len(curves) > 0:
+            curve = curves.pop(0)
+
+            should_comnine = (
+                (combine_curves[-1][-1][0] - curve[0][0]) ** 2
+                + (combine_curves[-1][-1][1] - curve[0][1]) ** 2
+            ) == 0
+
+            if should_comnine:
+                combine_curves[-1] += curve[1:]
+            else:
+                combine_curves.append(curve)
+
+        return combine_curves
+
+    @staticmethod
     def optimize(curves_to_optimize: list) -> list:
+        """Optimizes the order of drawing curves based on a NN search
+
+        Args:
+            curves_to_optimize (list): List of curves to optimize
+
+        Returns:
+            list: Optimized curves
+        """
         curves = copy.deepcopy(curves_to_optimize)
 
         optimized_curves = [curves.pop(0)]
@@ -637,9 +694,9 @@ class Parser:
             nn_idx: int | None = None
             use_start: bool | None = None
 
-            for i, curve_dict in enumerate(curves):
-                curve_start = curve_dict[0]
-                curve_end = curve_dict[-1]
+            for i, curve in enumerate(curves):
+                curve_start = curve[0]
+                curve_end = curve[-1]
 
                 dist_to_start = math.sqrt(
                     (curve_start[0] - last_end[0]) ** 2
@@ -661,15 +718,8 @@ class Parser:
 
             # Append curve based on closest start/end and reverse if necessary
 
-            curve_dict = curves.pop(nn_idx)
+            curve = curves.pop(nn_idx)
             if not use_start:
-                curve_dict.reverse()
-
-            if nn_dist == 0:
-                # Combine curves if continuing at same location and same style
-                optimized_curves[-1] += curve_dict[1:]
-            else:
-                # Append new curve if not continuing at same location
-                optimized_curves.append(curve_dict)
+                curve.reverse()
 
         return optimized_curves
