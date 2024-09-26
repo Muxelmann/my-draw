@@ -51,9 +51,11 @@ class Plotter:
         self._gcode_list.append(
             "G90; Absolute positioning - G91 would be relative positioning"
         )
+        self._gcode_list.append("G0 Z0; Move pen up")
         # self._gcode_list.append("$1=255; Keep servo motors on")
 
     def finish_gcode(self) -> None:
+        self._gcode_list.append("G0 X0 Y0; Go back home")
         # self._gcode_list.append("$1=0; Turn servo motors off")
         pass
 
@@ -74,8 +76,6 @@ class Plotter:
                     )
 
             self._gcode_list.append("G0 Z0; Move pen up")
-
-        self._gcode_list.append("G0 X0 Y0; Go back home")
 
     def exec_command(self, cmd: str, tries: int = 10) -> bool:
         """Executes a single C-Code command
