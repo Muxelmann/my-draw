@@ -551,7 +551,9 @@ class Parser:
         pass
 
     @staticmethod
-    def interpolate(curves_to_interpolate: list) -> list:
+    def interpolate(
+        curves_to_interpolate: list, min_p: int = 3, max_p: int = 100
+    ) -> list:
         """Interpolates bezier a list of successive curves.
 
         Here, a start point is followed by two control points and
@@ -560,6 +562,8 @@ class Parser:
 
         Args:
             curves_to_interpolate (list): List of Bezier curves
+            min_p (int, optional): minimum interpolation points. Defaults to 3.
+            max_p (int, optional): maximum interpolation points. Defaults to 100.
 
         Raises:
             Exception: There must be N * 3 + 1 points
@@ -584,9 +588,9 @@ class Parser:
                     + math.sqrt((p3[0] - p2[0]) ** 2 + (p3[1] - p2[1]) ** 2)
                 )
                 d = max(
-                    3,
+                    min_p,
                     min(
-                        100,
+                        max_p,
                         d // 5,
                     ),
                 )
