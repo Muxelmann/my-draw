@@ -154,11 +154,14 @@ class Parser:
 
         return curves_for_filling
 
-    def parse(self, root: ElementTree.Element) -> None:
+    def parse(self, root: ElementTree.Element, transfer_style: bool = False) -> None:
 
         for element in list(root):
             self.current_transforms.append(element.get("transform"))
             self.element_count += 1
+
+            if not transfer_style:
+                self.current_style = {}
 
             # Extract CSS style
             style = element.get("style")
@@ -167,17 +170,15 @@ class Parser:
                     [s.split(":") for s in style.split(";") if len(s) > 0]
                 )
 
-            # Extract stroke defined in HTML
-            stroke = element.get("stroke")
-            if stroke is not None:
-                self.current_style["stroke"] = stroke.replace(" ", "")
+            # Extract HTML attribs
+            for key, value in element.attrib.items():
+                self.current_style[key] = value
 
-            # TODO: stroke-width is not taken into account!
-
-            # Extract fill defined in HTML
-            fill = element.get("fill")
-            if fill is not None:
-                self.current_style["fill"] = fill.replace(" ", "")
+            if (
+                "fill" in self.current_style.keys()
+                and "stroke" not in self.current_style.keys()
+            ):
+                self.current_style["stroke"] = self.current_style["fill"]
 
             self.parse_element(element)
 
@@ -189,7 +190,7 @@ class Parser:
             self.convert_path(element.get("d"))
 
         elif element.tag == f"{NAMESPACE}g":
-            self.parse(element)
+            self.parse(element, True)
 
         elif element.tag == f"{NAMESPACE}rect":
             self.convert_rect(
@@ -220,6 +221,11 @@ class Parser:
                 self.parse_element(defined_element)
 
             self.current_transforms.pop()
+
+        elif element.tag == f"{NAMESPACE}clipPath":
+            print(
+                "Tag `clipPath` has been encountered, but its use is not yet implemented!"
+            )
 
         else:
             raise Exception(f"Unknown tag {element.tag}")
@@ -318,7 +324,7 @@ class Parser:
         self.current_curve.append(p)
 
     def line_relative(self, p: list) -> None:
-        p = [self.current_curve[-2] + p[0], self.current_curve[-1] + p[1]]
+        p = [self.current_curve[-1][0] + p[0], self.current_curve[-1][1] + p[1]]
         self.line(p)
 
     def horizontal(self, p: list) -> None:
@@ -337,7 +343,7 @@ class Parser:
         p = [p[0] + self.current_curve[-1][1]]
         self.vertical(p)
 
-    def close_path(self, _: list) -> None:
+    def close_path(self, _: list = []) -> None:
         if self.current_curve[0] != self.current_curve[-1]:
             self.line(self.current_curve[0])
 
@@ -460,8 +466,38 @@ class Parser:
             # "A": pass,
             # "a": pass,
         }
-        command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
 
+        # FIXME: stroke-width handles correctly for straight lines only!
+        if "stroke-width" in self.current_style.keys():
+
+            self.current_style["fill"] = self.current_style["stroke"]
+
+            stroke_width = float(self.current_style["stroke-width"])
+            command_regex = r"M[0-9e\.\,\-\s]*L[0-9e\.\,\-\s]*"
+            for command_str in re.findall(command_regex, d):
+                params = [float(p) for p in re.findall(r"[0-9e\-\.]+", command_str[1:])]
+
+                if params[0] == params[2]:  # Vertical line
+                    self.move([params[0] - stroke_width / 2, params[1]])
+                    self.line([params[2] - stroke_width / 2, params[3]])
+                    self.line([params[2] + stroke_width / 2, params[3]])
+                    self.line([params[0] + stroke_width / 2, params[1]])
+                    self.close_path()
+
+                elif params[1] == params[3]:  # Horizontal line
+                    self.move([params[0], params[1] - stroke_width / 2])
+                    self.line([params[2], params[3] - stroke_width / 2])
+                    self.line([params[2], params[3] + stroke_width / 2])
+                    self.line([params[0], params[1] + stroke_width / 2])
+                    self.close_path()
+
+                else:
+                    raise Exception(
+                        "Diagonal lines or curves with width not implemented"
+                    )
+                return
+
+        command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
         for command_str in re.findall(command_regex, d):
             params = [float(p) for p in re.findall(r"[0-9e\-\.]+", command_str[1:])]
             command = command_str[0]
@@ -490,7 +526,7 @@ class Parser:
         self.cubic_bezier((cx - r * c, cy - r, cx - r, cy - r * c, cx - r, cy))
         self.cubic_bezier((cx - r, cy + r * c, cx - r * c, cy + r, cx, cy + r))
         self.cubic_bezier((cx + r * c, cy + r, cx + r, cy + r * c, cx + r, cy))
-        self.close_path([])
+        self.close_path()
 
     def convert_defs(self, element: ElementTree.Element) -> None:
         for child in element:
