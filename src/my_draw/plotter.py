@@ -63,13 +63,15 @@ class Plotter:
         # self._gcode_list.append("$1=0; Turn servo motors off")
         pass
 
-    def convert_curves(self, curves: list, home: bool = False) -> None:
+    def convert_curves(self, curves: list) -> None:
 
         for curve in curves:
             for i, (x, y) in enumerate(curve):
 
                 if self.x_angle_error != 0:
-                    y += x * math.sin(self.x_angle_error * math.pi / 180)
+                    angle = self.x_angle_error * math.pi / 180
+                    y += x * math.sin(angle)
+                    x += x * (1 - math.cos(angle))
 
                 if i == 0:
                     self._gcode_list.append(
