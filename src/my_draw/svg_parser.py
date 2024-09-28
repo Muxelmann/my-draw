@@ -479,10 +479,15 @@ class Parser:
         # FIXME: stroke-width handles correctly for straight lines only!
         if "stroke-width" in self.current_style.keys():
 
-            stroke_width = float(self.current_style["stroke-width"])
-            command_regex = r"M[0-9e\.\,\-\s]*L[0-9e\.\,\-\s]*"
-            for command_str in re.findall(command_regex, d):
-                params = [float(p) for p in re.findall(r"[0-9e\-\.]+", command_str[1:])]
+            stroke_width = self.current_style["stroke-width"]
+            for unit in ["px", "em", "pt"]:
+                stroke_width = stroke_width.replace(unit, "")
+            stroke_width = float(stroke_width)
+
+            coords_regex = r"[0-9e\-\.]+"
+            r = re.findall(coords_regex, d)
+            if len(r) == 4:
+                params = [float(p) for p in r]
 
                 if params[0] == params[2]:  # Vertical line
                     self.current_style["fill"] = self.current_style["stroke"]
@@ -491,7 +496,6 @@ class Parser:
                     self.line([params[2] + stroke_width / 2, params[3]])
                     self.line([params[0] + stroke_width / 2, params[1]])
                     self.close_path()
-                    return
 
                 elif params[1] == params[3]:  # Horizontal line
                     self.current_style["fill"] = self.current_style["stroke"]
@@ -500,7 +504,8 @@ class Parser:
                     self.line([params[2], params[3] + stroke_width / 2])
                     self.line([params[0], params[1] + stroke_width / 2])
                     self.close_path()
-                    return
+
+                return
 
         command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
         for command_str in re.findall(command_regex, d):
