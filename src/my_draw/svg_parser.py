@@ -22,7 +22,7 @@ class Parser:
         self.current_definition_id = None
         self.definitions = {}
         self.current_transforms = []
-        self.current_style = {}
+        self.current_styles = []
         self.last_command = None
 
         root = ElementTree.fromstring(svg_string)
@@ -41,6 +41,15 @@ class Parser:
     def from_file(path: str) -> "Parser":
         with open(path, "r") as f:
             return Parser(f.read())
+
+    @property
+    def current_style(self) -> dict:
+        current_style = {}
+        for style in self.current_styles:
+            for key, value in style.items():
+                current_style[key] = value
+
+        return current_style
 
     @property
     def curves(self) -> list:
@@ -154,33 +163,33 @@ class Parser:
 
         return curves_for_filling
 
-    def parse(self, root: ElementTree.Element, transfer_style: bool = False) -> None:
+    def parse(self, root: ElementTree.Element) -> None:
 
         for element in list(root):
             self.current_transforms.append(element.get("transform"))
             self.element_count += 1
 
-            if not transfer_style:
-                self.current_style = {}
+            current_style = {}
 
             # Extract CSS style
             style = element.get("style")
             if style is not None:
-                self.current_style = dict(
+                current_style = dict(
                     [s.split(":") for s in style.split(";") if len(s) > 0]
                 )
 
             # Extract HTML attribs
             for key, value in element.attrib.items():
-                self.current_style[key] = value
+                current_style[key] = value
 
-            if (
-                "fill" in self.current_style.keys()
-                and "stroke" not in self.current_style.keys()
-            ):
-                self.current_style["stroke"] = self.current_style["fill"]
+            if "fill" in current_style.keys() and "stroke" not in current_style.keys():
+                current_style["stroke"] = current_style["fill"]
+
+            self.current_styles.append(current_style)
 
             self.parse_element(element)
+
+            self.current_styles.pop()
 
             self.current_transforms.pop()
 
@@ -190,7 +199,7 @@ class Parser:
             self.convert_path(element.get("d"))
 
         elif element.tag == f"{NAMESPACE}g":
-            self.parse(element, True)
+            self.parse(element)
 
         elif element.tag == f"{NAMESPACE}rect":
             self.convert_rect(
