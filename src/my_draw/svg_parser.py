@@ -479,32 +479,28 @@ class Parser:
         # FIXME: stroke-width handles correctly for straight lines only!
         if "stroke-width" in self.current_style.keys():
 
-            self.current_style["fill"] = self.current_style["stroke"]
-
             stroke_width = float(self.current_style["stroke-width"])
             command_regex = r"M[0-9e\.\,\-\s]*L[0-9e\.\,\-\s]*"
             for command_str in re.findall(command_regex, d):
                 params = [float(p) for p in re.findall(r"[0-9e\-\.]+", command_str[1:])]
 
                 if params[0] == params[2]:  # Vertical line
+                    self.current_style["fill"] = self.current_style["stroke"]
                     self.move([params[0] - stroke_width / 2, params[1]])
                     self.line([params[2] - stroke_width / 2, params[3]])
                     self.line([params[2] + stroke_width / 2, params[3]])
                     self.line([params[0] + stroke_width / 2, params[1]])
                     self.close_path()
+                    return
 
                 elif params[1] == params[3]:  # Horizontal line
+                    self.current_style["fill"] = self.current_style["stroke"]
                     self.move([params[0], params[1] - stroke_width / 2])
                     self.line([params[2], params[3] - stroke_width / 2])
                     self.line([params[2], params[3] + stroke_width / 2])
                     self.line([params[0], params[1] + stroke_width / 2])
                     self.close_path()
-
-                else:
-                    raise Exception(
-                        "Diagonal lines or curves with width not implemented"
-                    )
-                return
+                    return
 
         command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
         for command_str in re.findall(command_regex, d):
