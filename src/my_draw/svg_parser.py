@@ -4,6 +4,7 @@ import copy
 import math
 
 NAMESPACE = "{http://www.w3.org/2000/svg}"
+XLINK = "{http://www.w3.org/1999/xlink}"
 
 
 class Parser:
@@ -18,6 +19,8 @@ class Parser:
 
         self.element_count = 0
         self.current_curve = []
+        self.current_definition_id = None
+        self.definitions = {}
         self.current_transforms = []
         self.current_style = {}
         self.last_command = None
@@ -151,57 +154,75 @@ class Parser:
 
         return curves_for_filling
 
-    def parse(self, root: ElementTree.Element, transform: str | None = None) -> None:
-
-        self.current_transforms.append(transform)
+    def parse(self, root: ElementTree.Element) -> None:
 
         for element in list(root):
+            self.current_transforms.append(element.get("transform"))
             self.element_count += 1
 
             # Extract CSS style
-            style = element.get("style", "")
-            self.current_style = dict(
-                [s.split(":") for s in style.split(";") if len(s) > 0]
-            )
+            style = element.get("style")
+            if style is not None:
+                self.current_style = dict(
+                    [s.split(":") for s in style.split(";") if len(s) > 0]
+                )
 
             # Extract stroke defined in HTML
             stroke = element.get("stroke")
             if stroke is not None:
                 self.current_style["stroke"] = stroke.replace(" ", "")
 
+            # TODO: stroke-width is not taken into account!
+
             # Extract fill defined in HTML
             fill = element.get("fill")
             if fill is not None:
                 self.current_style["fill"] = fill.replace(" ", "")
 
-            if element.tag == f"{NAMESPACE}path":
-                self.convert_path(element.get("d"), transform)
+            self.parse_element(element)
 
-            elif element.tag == f"{NAMESPACE}g":
-                self.parse(element, element.get("transform"))
+            self.current_transforms.pop()
 
-            elif element.tag == f"{NAMESPACE}rect":
-                self.convert_rect(
-                    float(element.get("x")),
-                    float(element.get("y")),
-                    float(element.get("width")),
-                    float(element.get("height")),
-                )
+    def parse_element(self, element) -> None:
 
-            elif element.tag == f"{NAMESPACE}circle":
-                self.convert_circle(
-                    float(element.get("cx")),
-                    float(element.get("cy")),
-                    float(element.get("r")),
-                )
+        if element.tag == f"{NAMESPACE}path":
+            self.convert_path(element.get("d"))
 
-            elif element.tag == f"{NAMESPACE}defs":
-                self.convert_defs(element)
+        elif element.tag == f"{NAMESPACE}g":
+            self.parse(element)
 
-            else:
-                raise Exception(f"Unknown tag {element.tag}")
+        elif element.tag == f"{NAMESPACE}rect":
+            self.convert_rect(
+                float(element.get("x")),
+                float(element.get("y")),
+                float(element.get("width")),
+                float(element.get("height")),
+            )
 
-        self.current_transforms.pop()
+        elif element.tag == f"{NAMESPACE}circle":
+            self.convert_circle(
+                float(element.get("cx")),
+                float(element.get("cy")),
+                float(element.get("r")),
+            )
+
+        elif element.tag == f"{NAMESPACE}defs":
+            self.convert_defs(element)
+
+        elif element.tag == f"{NAMESPACE}use":
+            x = element.get("x")
+            y = element.get("y")
+            self.current_transforms.append(f"translate({x},{y})")
+
+            use_link = element.get(f"{XLINK}href")[1:]
+            defined_elements = self.definitions[use_link]
+            for defined_element in defined_elements:
+                self.parse_element(defined_element)
+
+            self.current_transforms.pop()
+
+        else:
+            raise Exception(f"Unknown tag {element.tag}")
 
     def tx_matrix(self, p: list) -> None:
         for i in range(len(self.current_curve)):
@@ -415,7 +436,7 @@ class Parser:
         ]
         self.smooth_quadratic_bezier(p)
 
-    def convert_path(self, d: str, transform: str | None) -> None:
+    def convert_path(self, d: str) -> None:
 
         commands = {
             "M": self.move,
@@ -472,11 +493,21 @@ class Parser:
         self.close_path([])
 
     def convert_defs(self, element: ElementTree.Element) -> None:
-        if len(element) == 0:
-            print(f"Empty def element found: {element}")
-            return
+        for child in element:
+            if child.tag == f"{NAMESPACE}g":
+                self.current_definition_id = child.get("id")
+                self.convert_defs(child)
+                continue
 
-        raise Exception("Non-empty def element not handled")
+            if self.current_definition_id is None:
+                raise Exception("Found a definition with `None` ID!")
+
+            if self.current_definition_id not in self.definitions.keys():
+                self.definitions[self.current_definition_id] = []
+
+            self.definitions[self.current_definition_id].append(child)
+
+        pass
 
     @staticmethod
     def interpolate(curves_to_interpolate: list) -> list:
