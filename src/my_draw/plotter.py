@@ -1,5 +1,6 @@
 import serial
 from tqdm import tqdm
+import math
 
 
 class Plotter:
@@ -9,6 +10,7 @@ class Plotter:
         home: bool = False,
         feed_speed: float = 5000,
         down_dist: float = 5,
+        x_angle_error: float = 0,
     ) -> None:
         """Initializes a Plotter instance to communicate over serial
 
@@ -16,7 +18,8 @@ class Plotter:
             port (str): The name of the serial port to which the plotter is connected.
             home (bool, optional): Homes the plotter automatically upon connection. Defaults to False.
             feed_speed (float, optional): Movement speed when plotting. Defaults to 5000.
-            down_dist (float, optional): _description_. Defaults to 5.
+            down_dist (float, optional): Distance the pen moves up and down. Defaults to 5.
+            x_angle_error (float, optional): Correct for skew because x/y angle is not 90n deg. Defaults to 0.
 
         Raises:
             Exception: _description_
@@ -26,6 +29,7 @@ class Plotter:
         self._feed_speed = feed_speed
         self._down_dist = down_dist
         self._gcode_list = []
+        self.x_angle_error = x_angle_error
 
         if not home:
             return
@@ -63,6 +67,9 @@ class Plotter:
 
         for curve in curves:
             for i, (x, y) in enumerate(curve):
+
+                if self.x_angle_error != 0:
+                    y += x * math.sin(self.x_angle_error * math.pi / 180)
 
                 if i == 0:
                     self._gcode_list.append(
