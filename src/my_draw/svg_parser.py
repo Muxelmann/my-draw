@@ -476,9 +476,11 @@ class Parser:
             # "a": pass,
         }
 
-        # FIXME: stroke-width handles correctly for straight lines only!
-        if "stroke-width" in self.current_style.keys():
+        command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
+        command_list = re.findall(command_regex, d)
 
+        # FIXME: stroke-width handles correctly for straight lines only!
+        if len(command_list) == 2 and "stroke-width" in self.current_style.keys():
             stroke_width = self.current_style["stroke-width"]
             for unit in ["px", "em", "pt"]:
                 stroke_width = stroke_width.replace(unit, "")
@@ -507,8 +509,7 @@ class Parser:
 
                 return
 
-        command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
-        for command_str in re.findall(command_regex, d):
+        for command_str in command_list:
             params = [float(p) for p in re.findall(r"[0-9e\-\.]+", command_str[1:])]
             command = command_str[0]
 
