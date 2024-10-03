@@ -39,11 +39,20 @@ class Parser:
 
     @staticmethod
     def from_file(path: str) -> "Parser":
+        """Generates a `Parser` object from a file
+
+        Args:
+            path (str): Path to the SVG file
+
+        Returns:
+            Parser: The initialized parser
+        """
         with open(path, "r") as f:
             return Parser(f.read())
 
     @property
     def current_style(self) -> dict:
+        """A combined dict of all styles resulting in the (hopefully) currently valid style for the line."""
         current_style = {}
         for style in self.current_styles:
             for key, value in style.items():
@@ -60,8 +69,7 @@ class Parser:
         """
         return [c["curve"] for c in self._all_curves]
 
-    @property
-    def curves_to_stroke(self) -> dict:
+    def get_curves_to_stroke(self) -> dict:
         """A dict of curves that should be stroked.
         Curves are matched by by stroke style.
 
@@ -88,8 +96,9 @@ class Parser:
 
     @property
     def curves_to_fill(self) -> dict:
-        """A dict of curves that should be filled.
-        Curves are matched by by fill style.
+        """A dict of all curves that should be filled.
+
+        If the curve contains a fill attribute, it is returned
 
         Returns:
             dict: dict of style-keys for curves to be filled, each curve being a list of [x, y] points
@@ -113,18 +122,20 @@ class Parser:
 
         return curves_to_fill
 
-    @property
-    def curves_for_filling(self) -> dict:
+    def get_curves_for_filling(self, spacing: float = 0.2, angle: float = 0) -> dict:
         """A dict of curves for filling geometries of different filling styles.
 
-        Only returns curves for filling black.
+        The default spacing of 0.2 mm appears to result in a good fill for standard ball-point pens
+
+        Args:
+            spacing (float, optional): The spacing between lines for filling. Defaults to 0.2
+            angle (float, optional): The angle at which to fill lines. Defailts to 0 (TODO: not yet implemented)
 
         Returns:
             dict: dict of style-keys for filling-curves, each curve being a list of [x, y] points
         """
         curves_to_fill = self.curves_to_fill
         curves_for_filling = {}
-        spacing = 0.2  # TODO: consider making this a property and or this method a get-function wirg arg
 
         for curve_style in curves_to_fill.keys():
             curves_for_filling[curve_style] = []
@@ -164,6 +175,11 @@ class Parser:
         return curves_for_filling
 
     def parse(self, root: ElementTree.Element) -> None:
+        """Starts the parsing proces of a root element
+
+        Args:
+            root (ElementTree.Element): The SVG's root element
+        """
 
         for element in list(root):
             self.current_transforms.append(element.get("transform"))
@@ -193,8 +209,21 @@ class Parser:
 
             self.current_transforms.pop()
 
-    def parse_element(self, element) -> None:
+    def parse_element(self, element: ElementTree.Element) -> None:
+        """Parses the SVG element that may be drawn.
 
+        So far the following are implemented: path, g, rect, circle, defs, use
+
+        The following is ignored (may need updating): clipPath
+
+        All other elements throw an exception
+
+        Args:
+            element (ElementTree.Element): The element to convert to a series of curves
+
+        Raises:
+            Exception: Unsupported element encountered
+        """
         if element.tag == f"{NAMESPACE}path":
             self.convert_path(element.get("d"))
 
@@ -359,11 +388,21 @@ class Parser:
         self.save_current_curve()
 
     def cubic_bezier(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         self.current_curve.append([p[0], p[1]])
         self.current_curve.append([p[2], p[3]])
         self.current_curve.append([p[4], p[5]])
 
     def cubic_bezier_relative(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier curve using relative coordinates.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         p = [
             p[0] + self.current_curve[-1][0],
             p[1] + self.current_curve[-1][1],
@@ -375,6 +414,11 @@ class Parser:
         self.cubic_bezier(p)
 
     def smooth_cubic_bezier(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier curve.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         if self.last_command is not None and self.last_command.lower() in "cs":
             p = [
                 self.current_curve[-1][0]
@@ -398,6 +442,11 @@ class Parser:
         self.cubic_bezier(p)
 
     def smooth_cubic_bezier_relative(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier curve using relative coordinates.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         p = [
             p[0] + self.current_curve[-1][0],
             p[1] + self.current_curve[-1][1],
@@ -407,10 +456,20 @@ class Parser:
         self.smooth_cubic_bezier(p)
 
     def quadratic_bezier(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier curve.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         p = [p[0], p[1], p[0], p[1], p[2], p[3]]
         self.cubic_bezier(p)
 
     def quadratic_bezier_relative(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier curve using relative coordinates.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         p = [
             p[0] + self.current_curve[-1][0],
             p[1] + self.current_curve[-1][1],
@@ -420,6 +479,11 @@ class Parser:
         self.quadratic_bezier(p)
 
     def smooth_quadratic_bezier(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier curve.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         if self.last_command is not None and self.last_command.lower() in "qt":
             p = [
                 self.current_curve[-1][0]
@@ -445,6 +509,11 @@ class Parser:
         self.cubic_bezier(p)
 
     def smooth_quadratic_bezier_relative(self, p: list) -> None:
+        """Converts the coordinates of the d-attribute of an SVG into a smooth bezier curve using relative coordinates.
+
+        Args:
+            p (list): coordinates following the command in the d string
+        """
         p = [
             p[0] + self.current_curve[-1][0],
             p[1] + self.current_curve[-1][1],
@@ -452,7 +521,14 @@ class Parser:
         self.smooth_quadratic_bezier(p)
 
     def convert_path(self, d: str) -> None:
+        """Converts the d-attribute of an SVG path into a series of bezier curves.
 
+        Args:
+            d (str): d string
+
+        Raises:
+            Exception: Arc is not yet implemented and an attribute containing an arc will raise an exception
+        """
         commands = {
             "M": self.move,
             "m": self.move_relative,
@@ -479,36 +555,6 @@ class Parser:
         command_regex = r"[MmLlHhVvZzCcQqSsTtAa][0-9e\.\,\-\s]*"
         command_list = re.findall(command_regex, d)
 
-        # FIXME: stroke-width handles correctly for straight lines only!
-        if len(command_list) == 2 and "stroke-width" in self.current_style.keys():
-            stroke_width = self.current_style["stroke-width"]
-            for unit in ["px", "em", "pt"]:
-                stroke_width = stroke_width.replace(unit, "")
-            stroke_width = float(stroke_width)
-
-            coords_regex = r"[0-9e\-\.]+"
-            r = re.findall(coords_regex, d)
-            if len(r) == 4:
-                params = [float(p) for p in r]
-
-                if params[0] == params[2]:  # Vertical line
-                    self.current_style["fill"] = self.current_style["stroke"]
-                    self.move([params[0] - stroke_width / 2, params[1]])
-                    self.line([params[2] - stroke_width / 2, params[3]])
-                    self.line([params[2] + stroke_width / 2, params[3]])
-                    self.line([params[0] + stroke_width / 2, params[1]])
-                    self.close_path()
-
-                elif params[1] == params[3]:  # Horizontal line
-                    self.current_style["fill"] = self.current_style["stroke"]
-                    self.move([params[0], params[1] - stroke_width / 2])
-                    self.line([params[2], params[3] - stroke_width / 2])
-                    self.line([params[2], params[3] + stroke_width / 2])
-                    self.line([params[0], params[1] + stroke_width / 2])
-                    self.close_path()
-
-                return
-
         for command_str in command_list:
             params = [float(p) for p in re.findall(r"[0-9e\-\.]+", command_str[1:])]
             command = command_str[0]
@@ -524,6 +570,14 @@ class Parser:
             self.save_current_curve()
 
     def convert_rect(self, x: float, y: float, w: float, h: float) -> None:
+        """Converts the attributes of an SVG path into a series of bezier curves.
+
+        Args:
+            x (float): x coordinate
+            y (float): y coordinate
+            w (float): width
+            h (float): height
+        """
         self.move((x, y))
         self.line((x + w, y))
         self.line((x + w, y + h))
@@ -531,6 +585,13 @@ class Parser:
         self.close_path((x, y))
 
     def convert_circle(self, cx: float, cy: float, r: float) -> None:
+        """Converts the attributes of an SVG circle into a series of bezier curves.
+
+        Args:
+            cx (float): center x
+            cy (float): center y
+            r (float): radius
+        """
         c = 4 / 3 * (math.sqrt(2) - 1)
         self.move((cx + r, cy))
         self.cubic_bezier((cx + r, cy - r * c, cx + r * c, cy - r, cx, cy - r))
@@ -540,6 +601,15 @@ class Parser:
         self.close_path()
 
     def convert_defs(self, element: ElementTree.Element) -> None:
+        """Converts the content of an SVG def into a series of bezier curves,
+        keeping track of its ID (in case of SVG use)
+
+        Args:
+            element (ElementTree.Element): The def element
+
+        Raises:
+            Exception: Raised if the def element has no ID
+        """
         for child in element:
             if child.tag == f"{NAMESPACE}g":
                 self.current_definition_id = child.get("id")
