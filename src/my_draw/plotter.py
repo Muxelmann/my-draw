@@ -81,7 +81,7 @@ class Plotter:
 
                 else:
                     self._gcode_list.append(
-                        f"G1 F4000 X{round(x, 2)} Y{round(-y, 2)}; Draw"
+                        f"G1 F{self._feed_speed} X{round(x, 2)} Y{round(-y, 2)}; Draw"
                     )
 
             self._gcode_list.append("G0 Z0; Move pen up")
