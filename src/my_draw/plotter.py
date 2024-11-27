@@ -75,7 +75,7 @@ class Plotter:
 
                 if i == 0:
                     self._gcode_list.append(
-                        f"G0 X{round(x, 2)} Y{round(-y, 2)}; Move to start of path"
+                        f"G1 F{self._feed_speed} X{round(x, 2)} Y{round(-y, 2)}; Move to start of path"
                     )
                     self._gcode_list.append("G0 Z5; Move pen down")
 
