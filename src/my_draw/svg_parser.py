@@ -26,7 +26,11 @@ class Parser:
         self.last_command = None
 
         root = ElementTree.fromstring(svg_string)
-        self.viewbox = [float(c) for c in root.get("viewBox").split(" ")]
+        viewbox = root.get("viewBox")
+        if viewbox is None:
+            self.viewbox = None
+        else:
+            self.viewbox = [float(c) for c in root.get("viewBox").split(" ")]
 
         if parse_on_init:
             self.parse(root)
@@ -122,13 +126,16 @@ class Parser:
 
         return curves_to_fill
 
-    def get_curves_for_filling(self, spacing: float = 0.2, angle: float = 0) -> dict:
+    def get_curves_for_filling(
+        self, line_spacing: float = 0.2, edge_spacing: float = 0.2, angle: float = 0
+    ) -> dict:
         """A dict of curves for filling geometries of different filling styles.
 
         The default spacing of 0.2 mm appears to result in a good fill for standard ball-point pens
 
         Args:
-            spacing (float, optional): The spacing between lines for filling. Defaults to 0.2
+            line_spacing (float, optional): The spacing between lines for filling. Defaults to 0.2
+            edge_spacing (float, optional): The spacing to the x-axis lines to not overshoot the contours. Defaults to 0.2
             angle (float, optional): The angle at which to fill lines. Defailts to 0 (TODO: not yet implemented)
 
         Returns:
@@ -147,7 +154,7 @@ class Parser:
 
             # Ray casting algorithm to fill curves
             # 0.2 mm spacing typically results in completely filled in area i.e., "black"
-            for i in range(min_y, max_y, int(spacing * 10)):
+            for i in range(min_y, max_y, int(line_spacing * 10)):
                 y = i / 10
                 intersections = []
                 for curve in curves_to_fill[curve_style]:
@@ -166,8 +173,8 @@ class Parser:
 
                 intersections.sort()
                 for i in range(0, len(intersections), 2):
-                    x0 = intersections[i] + spacing
-                    x1 = intersections[i + 1] - spacing
+                    x0 = intersections[i] + edge_spacing
+                    x1 = intersections[i + 1] - edge_spacing
                     if x0 > x1:
                         continue
                     curves_for_filling[curve_style].append([[x0, y], [x1, y]])
@@ -264,6 +271,9 @@ class Parser:
             print(
                 "Tag `clipPath` has been encountered, but its use is not yet implemented!"
             )
+
+        elif element.tag in [f"{NAMESPACE}{x}" for x in ["title", "desc"]]:
+            pass  # Dp nothing for title or description
 
         else:
             raise Exception(f"Unknown tag {element.tag}")
@@ -769,7 +779,7 @@ class Parser:
 
         aspect_target = w_target / h_target
 
-        if use_viewbox:
+        if use_viewbox and self.viewbox is not None:
             min_x, min_y, max_x, max_y = self.viewbox
         else:
             min_x, min_y, max_x, max_y = self.get_min_max()
