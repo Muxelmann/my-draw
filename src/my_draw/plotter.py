@@ -11,6 +11,7 @@ class Plotter:
         feed_speed: float = 5000,
         down_dist: float = 5,
         x_angle_error: float = 0,
+        keep_on: bool = True,
     ) -> None:
         """Initializes a Plotter instance to communicate over serial
 
@@ -20,7 +21,7 @@ class Plotter:
             feed_speed (float, optional): Movement speed when plotting. Defaults to 5000.
             down_dist (float, optional): Distance the pen moves up and down. Defaults to 5.
             x_angle_error (float, optional): Correct for skew because x/y angle is not 90n deg. Defaults to 0.
-
+            keep_on (bool, optional): Keep the motors on during plotting. Defaults to False
         Raises:
             Exception: _description_
         """
@@ -30,6 +31,7 @@ class Plotter:
         self._down_dist = down_dist
         self._gcode_list = []
         self.x_angle_error = x_angle_error
+        self.keep_on = keep_on
 
         if not home:
             return
@@ -56,12 +58,13 @@ class Plotter:
             "G90; Absolute positioning - G91 would be relative positioning"
         )
         self._gcode_list.append("G0 Z0; Move pen up")
-        # self._gcode_list.append("$1=255; Keep servo motors on")
+        if self.keep_on:
+            self._gcode_list.append("$1=255; Keep servo motors on")
 
     def finish_gcode(self) -> None:
         self._gcode_list.append("G0 X0 Y0; Go back home")
-        # self._gcode_list.append("$1=0; Turn servo motors off")
-        pass
+        if self.keep_on:
+            self._gcode_list.append("$1=0; Turn servo motors off")
 
     def convert_curves(self, curves: list) -> None:
 
@@ -86,77 +89,113 @@ class Plotter:
 
             self._gcode_list.append("G0 Z0; Move pen up")
 
-    def exec_command(self, cmd: str, tries: int = 10) -> bool:
+    def exec_command(self, cmd: str) -> bool:
         """Executes a single C-Code command
+        and makes sure that the printer is idle before executing a `$`-command
+        for changing GRBL settings.
 
         Args:
             cmd (str): C-Code command
-            tries (int, optional): Numer of retries before giving up. Defaults to 10.
 
         Returns:
             bool: True if success
         """
         if cmd[0] == "$":  # Wait for idle when changing GRBL settings
+
+            # Check if idle
             in_idle = False
+            # Check if queried for status
+            queried = False
+
             while True:
-                self.ser.write(b"?\n")  # Query for status
-                r = ""
-                while len(r) == 0:
-                    r = self.ser.readline()
+                # Query for status if query not acknowledged
+                if not queried and not in_idle:
+                    self.ser.write(b"?\n")
+                    queried = True
 
-                # Once idle is detected ...
-                if not in_idle and r[1:5] != b"Idle":
-                    continue
+                # If queried and idle is not yet confirmed
+                elif queried and not in_idle:
 
-                # ... confirm idle and ...
-                in_idle = True
+                    # Read / Wait for response and ...
+                    r = ""
+                    while len(r) == 0:
+                        r = self.ser.readline()
 
-                # ... wait for command acknowledgement
-                if r != b"ok\r\n":
-                    continue
+                    # ... check if idle
+                    if r.startswith(b"<Idle"):
+                        # ... confirm idle
+                        in_idle = True
+                        continue
 
-                break
+                    # ... check if running
+                    elif r.startswith(b"<Run"):
+                        # ... wait for idle again
+                        continue
 
-        self.ser.write(f"{cmd}\n".encode("utf-8"))
-        while True:
-            if tries > 0:
-                r = ""
-                while len(r) == 0:
-                    r = self.ser.readline()
-                if r == b"ok\r\n":
-                    return True
-                tries -= 1
-            else:
-                print(r)
-                return False
+                    # ... check if query is concluded
+                    elif r == b"ok\r\n":
+                        queried = False
+                        continue
 
-    def exec_commands(self, cmds: str | None = None) -> bool:
+                    # ... unknown response
+                    else:
+                        print(f"Unexpected response: {r}")
+                        return False
+
+                elif queried and in_idle:
+                    r = ""
+                    while len(r) == 0:
+                        r = self.ser.readline()
+
+                    # ... check if idle
+                    if r == b"ok\r\n":
+                        queried = False
+                        continue
+
+                # elif not queried and in_idle: # Equivalent to `else:`
+                else:
+                    # If idle has been confirmed leave while loop
+                    break
+
+        self.ser.write(f"{cmd}\n".encode("utf-8"))  # Send command
+
+        # Obtain ok response after command execution
+        r = ""
+        while len(r) == 0:
+            r = self.ser.readline()
+            print(r)
+        if r == b"ok\r\n":
+            return True
+
+        return False
+
+    def exec_commands(self, commands: str | None = None) -> bool:
         """Executes a passed string of G-Code commands and uses the `self.gcode` if `None` is passed.
 
         Args:
-            cmds (str | None, optional): G-Code commands. Defaults to None.
+            commands (str | None, optional): G-Code commands. Defaults to None.
 
         Returns:
             bool: True if success
         """
-        if cmds is None:
-            cmds = self.gcode
+        if commands is None:
+            commands = self.gcode
 
-        for cmd in tqdm(cmds.split("\n")):
+        for command in tqdm(commands.split("\n")):
 
             # Skip empty lines
-            if len(cmd) == 0:
+            if len(command) == 0:
                 continue
 
             # Extract comment
-            cmt = ""
-            if ";" in cmd:
-                cmd, cmt = cmd.split(";")
-                cmt = cmt.strip()
+            comment = ""
+            if ";" in command:
+                command, comment = command.split(";")
+                comment = comment.strip()
 
             # Format command
-            cmd = cmd.strip()
-            if not self.exec_command(cmd):
+            command = command.strip()
+            if not self.exec_command(command):
                 return False
         return True
 
