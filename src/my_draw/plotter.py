@@ -163,7 +163,6 @@ class Plotter:
         r = ""
         while len(r) == 0:
             r = self.ser.readline()
-            print(r)
         if r == b"ok\r\n":
             return True
 
