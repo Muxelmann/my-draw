@@ -21,7 +21,7 @@ class Plotter:
             feed_speed (float, optional): Movement speed when plotting. Defaults to 5000.
             down_dist (float, optional): Distance the pen moves up and down. Defaults to 5.
             x_angle_error (float, optional): Correct for skew because x/y angle is not 90n deg. Defaults to 0.
-            keep_on (bool, optional): Keep the motors on during plotting. Defaults to False
+            keep_on (bool, optional): Keep the motors on during plotting. Defaults to True
         Raises:
             Exception: _description_
         """
@@ -62,9 +62,9 @@ class Plotter:
             self._gcode_list.append("$1=255; Keep servo motors on")
 
     def finish_gcode(self) -> None:
-        self._gcode_list.append("G0 X0 Y0; Go back home")
         if self.keep_on:
             self._gcode_list.append("$1=0; Turn servo motors off")
+        self._gcode_list.append("G0 X0 Y0; Go back home")
 
     def convert_curves(self, curves: list) -> None:
 
@@ -181,6 +181,7 @@ class Plotter:
             commands = self.gcode
 
         for command in tqdm(commands.split("\n")):
+            command = command.strip()
 
             # Skip empty lines
             if len(command) == 0:
