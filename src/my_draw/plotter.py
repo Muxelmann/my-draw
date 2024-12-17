@@ -57,13 +57,15 @@ class Plotter:
         self._gcode_list.append(
             "G90; Absolute positioning - G91 would be relative positioning"
         )
-        self._gcode_list.append("G0 Z0; Move pen up")
         if self.keep_on:
             self._gcode_list.append("$1=255; Keep servo motors on")
+        else:
+            self._gcode_list.append("$1=0; Keep servo motors on")
+
+        self._gcode_list.append("G0 Z0; Move pen up")
 
     def finish_gcode(self) -> None:
-        if self.keep_on:
-            self._gcode_list.append("$1=0; Turn servo motors off")
+        self._gcode_list.append("$1=0; Turn servo motors off")
         self._gcode_list.append("G0 X0 Y0; Go back home")
 
     def convert_curves(self, curves: list) -> None:
