@@ -347,6 +347,8 @@ class Parser:
         self.current_curve = []
 
     def move(self, p: list) -> None:
+        if len(self.current_curve) > 0:
+            self.save_current_curve()
         self.current_curve.append(p)
 
     def move_relative(self, p: list) -> None:
